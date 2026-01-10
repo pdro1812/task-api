@@ -1,0 +1,69 @@
+name: CI & GitOps Strategy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Baixa o código da API
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. Login no Docker Hub
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    # 3. Define a tag baseada no SHA curto do commit (ex: a1b2c3d)
+    - name: Set Short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    # 4. Build e Push da Imagem Docker
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        # Gera duas tags: 'latest' e o hash do commit (imutável)
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/task-api:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/task-api:${{ steps.vars.outputs.sha_short }}
+
+    # 5. Atualiza o Repositório de Manifestos (A mágica do GitOps!)
+    - name: Update Manifest Repository
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+        MANIFEST_REPO: pdro1812/task-api-manifests 
+        IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/task-api
+        NEW_TAG: ${{ steps.vars.outputs.sha_short }}
+      run: |
+        echo "🚀 Atualizando manifesto para imagem: $IMAGE_NAME:$NEW_TAG"
+        
+        # Clona o repositório de manifestos usando o PAT
+        git clone https://$GH_PAT@github.com/$MANIFEST_REPO.git deployment-repo
+        cd deployment-repo
+        
+        # Configura git user (para o commit aparecer bonito)
+        git config user.name "GitHub Actions CI"
+        git config user.email "actions@github.com"
+        
+        # Atualiza a tag da imagem no arquivo YAML usando sed
+        # Procura por "image: .../task-api:..." e substitui pela nova tag
+        sed -i "s|image: .*$IMAGE_NAME:.*|image: $IMAGE_NAME:$NEW_TAG|g" 3-api.yaml
+        
+        # Verifica se houve mudança
+        if [[ -n $(git status -s) ]]; then
+          git add 3-api.yaml
+          git commit -m "k8s(ci): update image tag to $NEW_TAG"
+          git push origin main
+          echo "✅ Manifesto atualizado com sucesso!"
+        else
+          echo "⚠️ Nenhuma alteração necessária (talvez a tag seja a mesma)."
+        fi
