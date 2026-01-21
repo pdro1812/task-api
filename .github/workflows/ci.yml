@@ -7,12 +7,13 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # Segurança: limita permissões padrão
 
     steps:
     # 1. Baixa o código da API
     - name: Checkout Code
       uses: actions/checkout@v4
-
 
     # 2. Login no Docker Hub
     - name: Login to Docker Hub
@@ -21,7 +22,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # 3. Define a tag baseada no SHA curto do commit (ex: a1b2c3d)
+    # 3. Define a tag baseada no SHA curto do commit
     - name: Set Short SHA
       id: vars
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
@@ -32,12 +33,11 @@ jobs:
       with:
         context: .
         push: true
-        # Gera duas tags: 'latest' e o hash do commit (imutável)
         tags: |
           ${{ secrets.DOCKERHUB_USERNAME }}/task-api:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/task-api:${{ steps.vars.outputs.sha_short }}
 
-    # 5. Atualiza o Repositório de Manifestos (A mágica do GitOps!)
+    # 5. Atualiza o Repositório de Manifestos (GitOps)
     - name: Update Manifest Repository
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
@@ -45,26 +45,32 @@ jobs:
         IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/task-api
         NEW_TAG: ${{ steps.vars.outputs.sha_short }}
       run: |
-        echo "🚀 Atualizando manifesto para imagem: $IMAGE_NAME:$NEW_TAG"
+        echo "🚀 Iniciando atualização de manifesto para: $NEW_TAG"
         
-        # Clona o repositório de manifestos usando o PAT
+        # Clona o repo
         git clone https://$GH_PAT@github.com/$MANIFEST_REPO.git deployment-repo
         cd deployment-repo
         
-        # Configura git user (para o commit aparecer bonito)
+        # Configura git user
         git config user.name "GitHub Actions CI"
         git config user.email "actions@github.com"
         
-        # Atualiza a tag da imagem no arquivo YAML usando sed
-        # Procura por "image: .../task-api:..." e substitui pela nova tag
+        # Debug: Mostra como estava antes (bom para evidência no artigo)
+        echo "📄 Versão anterior:"
+        grep "image:" 3-api.yaml
+        
+        # Atualiza a tag (Regex ajustado para pegar espaços em branco antes de 'image:')
         sed -i "s|image: .*$IMAGE_NAME:.*|image: $IMAGE_NAME:$NEW_TAG|g" 3-api.yaml
         
-        # Verifica se houve mudança
+        # Verifica mudança
         if [[ -n $(git status -s) ]]; then
+          echo "📄 Nova versão:"
+          grep "image:" 3-api.yaml
+          
           git add 3-api.yaml
           git commit -m "k8s(ci): update image tag to $NEW_TAG"
           git push origin main
-          echo "✅ Manifesto atualizado com sucesso!"
+          echo "✅ Manifesto atualizado e push realizado!"
         else
-          echo "⚠️ Nenhuma alteração necessária (talvez a tag seja a mesma)."
+          echo "⚠️ Nenhuma alteração necessária."
         fi
