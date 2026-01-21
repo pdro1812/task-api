@@ -135,3 +135,5 @@ async function gracefulShutdown(signal) {
 // Captura sinais do SO e do Kubernetes
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+//comentario teste
