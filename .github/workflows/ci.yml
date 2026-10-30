@@ -3,9 +3,32 @@ name: CI & GitOps Strategy
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+        - 6379:6379
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+    - run: npm ci
+    - run: npm test
+
   build-and-push:
+    needs: test
+    # Só publica imagem e atualiza manifestos em push na main (PRs rodam apenas os testes)
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read # Segurança: limita permissões padrão
@@ -33,6 +56,8 @@ jobs:
       with:
         context: .
         push: true
+        build-args: |
+          BUILD_SHA=${{ steps.vars.outputs.sha_short }}
         tags: |
           ${{ secrets.DOCKERHUB_USERNAME }}/task-api:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/task-api:${{ steps.vars.outputs.sha_short }}
