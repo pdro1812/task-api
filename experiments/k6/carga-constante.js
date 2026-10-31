@@ -13,10 +13,12 @@ export const options = {
             rate: Number(__ENV.RATE || 50),
             timeUnit: '1s',
             duration: __ENV.DURATION || '120s',
-            preAllocatedVUs: 50,
-            maxVUs: 500,
+            preAllocatedVUs: Number(__ENV.PRE_VUS || 50),
+            maxVUs: Number(__ENV.MAX_VUS || 500),
         },
     },
+    // NO_REUSE=1: cada requisição abre uma conexão TCP nova (cliente sem keep-alive)
+    noConnectionReuse: __ENV.NO_REUSE === '1',
     summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };
 
