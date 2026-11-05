@@ -16,14 +16,23 @@ Anote no artigo: CPU/RAM da máquina host, versões do kind, Kubernetes, ArgoCD,
 
 | # | Cenário | Script | Variável independente | Métricas |
 |---|---------|--------|-----------------------|----------|
-| 1 | Rolling update sob carga | `run-rolling-update.sh` | com/sem `preStop`, com/sem `tini` | % sucesso, % sem resposta, p95/p99 |
-| 2 | Redis indisponível | `run-redis-outage.sh` | `RESILIENCE_MODE` = baseline, failfast, breaker; `READINESS_DEPENDS_ON_REDIS` | % 503, % sem resposta, latência durante a falha, tempo até voltar a 200 |
-| 3 | Rollback | `measure-rollback.sh` | imperativo × GitOps (polling, refresh manual, webhook) | tempo até a versão anterior responder |
+| C1 | Redis indisponível | `run-redis-outage.sh` (ou `run-c1-randomizado.sh`) | `RESILIENCE_MODE` = baseline, failfast, breaker; `READINESS_DEPENDS_ON_REDIS`; cliente com keep-alive × conexão nova (`NO_REUSE=1`) | % 503, % sem resposta, latência durante a falha, tempo até voltar a 200 |
+| C2 | Rolling update sob carga | `run-rolling-update.sh` | com/sem `preStop` (com/sem `tini` ainda não avaliado) | % sucesso, % sem resposta, p95/p99 |
+| C3 | Rollback | `measure-rollback.sh` (`POLLER=1`) | imperativo × GitOps (polling, refresh manual, webhook) | tempo até a 1ª resposta e até 100 % das respostas na versão anterior |
+| C4 | Redis pendurado (lento) | `run-redis-outage.sh` com `FAULT=pause` | `RESILIENCE_MODE` | % 503, % sem resposta, p99 durante a falha |
+| C5 | Rollback de versão quebrada | `run-broken-rollback.sh` (imagem de `imagem-quebrada/`) | — | erros vistos pelo cliente, tempo do `rollout undo` até estabilizar |
 
 Rode pelo menos 10 rodadas por configuração e reporte média e desvio-padrão:
 
 ```bash
 python3 experiments/analyze.py experiments/results/*.csv
+```
+
+Para a refação do C1 em ordem aleatória, com monitores (EndpointSlices, CPU) e VUs suficientes:
+
+```bash
+CONFIGS="failfast:true:noreuse breaker:true:noreuse" RUNS=10 OUT=experiments/results/v2 \
+  BASE_URL=http://<IP do nó>:30080 ./experiments/run-c1-randomizado.sh
 ```
 
 ## Opções adicionais

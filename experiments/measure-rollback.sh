@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cenário 3: tempo de recuperação (TTR) de um rollback, medido até a nova versão estar
+# C3: tempo de recuperação (TTR) de um rollback, medido até a nova versão estar
 # respondendo em /version (e não apenas até o comando retornar).
 # Uso:
 #   METHOD=imperativo ./experiments/measure-rollback.sh          (kubectl rollout undo)
@@ -7,6 +7,8 @@
 #   Variantes GitOps: padrão = polling do ArgoCD; REFRESH=1 = refresh manual logo após o push;
 #   WEBHOOK=1 = envia ao argocd-server o payload de push do GitHub (WEBHOOK_URL, ex.: via port-forward).
 #   BRANCH escolhe o branch acompanhado pelo ArgoCD (padrão: main). LABEL nomeia a variante no CSV.
+#   POLLER=1: um medidor independente consulta /version a cada 100 ms desde antes do comando e grava
+#   <OUT>/rollback-<LABEL>-<n>.versions (analisado por experiments/c3_poller.py).
 set -euo pipefail
 NS=${NS:-task-api}
 METHOD=${METHOD:-imperativo}
@@ -17,6 +19,12 @@ mkdir -p "$OUT"
 before=$(curl -s "$BASE_URL/version")
 img() { kubectl -n "$NS" get deploy/task-api -o jsonpath='{.spec.template.spec.containers[0].image}'; }
 img_before=$(img)
+if [ "${POLLER:-0}" = 1 ]; then
+  n=$(( $(grep -c "^${LABEL:-$METHOD}," "$OUT/rollback.csv" 2>/dev/null || true) + 1 ))
+  python3 "$(dirname "$0")/poll-version.py" "$BASE_URL" "$OUT/rollback-${LABEL:-$METHOD}-$n.versions" 0.1 &
+  POLL=$!
+  sleep 2
+fi
 t0=$(date +%s.%N)
 case "$METHOD" in
   imperativo)
@@ -43,4 +51,8 @@ t_rollout=$(date +%s.%N)
 # Espera todas as respostas virem da versão anterior
 until v=$(curl -s "$BASE_URL/version") && [ -n "$v" ] && [ "$v" != "$before" ]; do sleep 0.2; done
 t_served=$(date +%s.%N)
+if [ "${POLLER:-0}" = 1 ]; then
+  sleep "${SETTLE:-10}"
+  kill "$POLL"; wait "$POLL" 2>/dev/null || true
+fi
 echo "${LABEL:-$METHOD},$t0,$t_cmd,$t_rollout,$t_served" | tee -a "$OUT/rollback.csv"
