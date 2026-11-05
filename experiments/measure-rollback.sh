@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cenário 3: tempo de recuperação (TTR) de um rollback, medido até a nova versão estar
+# C3: tempo de recuperação (TTR) de um rollback, medido até a nova versão estar
 # respondendo em /version (e não apenas até o comando retornar).
 # Uso:
 #   METHOD=imperativo ./experiments/measure-rollback.sh          (kubectl rollout undo)

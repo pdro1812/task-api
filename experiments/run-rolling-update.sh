@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cenário 1: rolling update sob carga. Compara configurações (com/sem preStop, com/sem tini etc.)
+# C2: rolling update sob carga. Compara configurações (com/sem preStop, com/sem tini etc.)
 # alternando a imagem entre duas tags já publicadas.
 # Uso: LABEL=prestop TAG_A=abc123 TAG_B=def456 RUNS=10 ./experiments/run-rolling-update.sh
 set -euo pipefail

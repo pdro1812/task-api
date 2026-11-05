@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     services:
@@ -17,10 +17,10 @@ jobs:
         ports:
         - 6379:6379
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v5
+    - uses: actions/setup-node@v5
       with:
-        node-version: 20
+        node-version: 22
         cache: npm
     - run: npm ci
     - run: npm test
@@ -29,18 +29,18 @@ jobs:
     needs: test
     # Só publica imagem e atualiza manifestos em push na main (PRs rodam apenas os testes)
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read # Segurança: limita permissões padrão
 
     steps:
     # 1. Baixa o código da API
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     # 2. Login no Docker Hub
     - name: Login to Docker Hub
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -52,7 +52,7 @@ jobs:
 
     # 4. Build e Push da Imagem Docker
     - name: Build and Push Docker Image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: .
         push: true
