@@ -12,6 +12,7 @@ MON_NS=${NS:-task-api}
 MON_PIDS=()
 
 _mon_endpoints() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   local last=""
   while true; do
     local cur
@@ -23,6 +24,7 @@ _mon_endpoints() {
 }
 
 _mon_cpu() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   local a b
   read -r _ a1 a2 a3 a4 a5 a6 a7 _ < /proc/stat
   while sleep 1; do
@@ -34,6 +36,7 @@ _mon_cpu() {
 }
 
 _mon_docker() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   while true; do
     docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' tcc-control-plane tcc-worker tcc-worker2 2>/dev/null \
       | while read -r l; do echo "$(date +%s.%N) $l"; done
@@ -41,6 +44,7 @@ _mon_docker() {
 }
 
 _mon_metrics() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   # /metrics de cada Pod da API, lido de dentro de um nó (os IPs de Pod não são roteáveis a partir do host)
   while true; do
     local t ips
@@ -56,6 +60,7 @@ _mon_metrics() {
 }
 
 _mon_redis() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   # Estado do Pod do Redis (Ready, reinícios, motivo e fim do último término), só nas mudanças
   local last=""
   while true; do
@@ -67,6 +72,7 @@ _mon_redis() {
 }
 
 _mon_pods() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   # CPU (ns acumulados) e memória (working set) de cada contêiner do namespace, pelo runtime dos nós
   while true; do
     local t
