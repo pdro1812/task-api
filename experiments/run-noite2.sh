@@ -103,6 +103,15 @@ git -C "$MANIFESTS_DIR" show "origin/$BRANCH:argocd-app.yaml" | kubectl apply -f
 wait_argo "$(git -C "$MANIFESTS_DIR" rev-parse HEAD)" || exit 1
 log "Argo CD de volta ao branch com selfHeal; imagem $(img)"
 
+# O C3 GitOps desfaz o commit do topo (git revert HEAD): garante que o topo seja uma troca entre duas versões boas
+cur=$(sed -n 's|^ *image: \(task-api:[^ ]*\)$|\1|p' "$MANIFESTS_DIR/3-api.yaml")
+next=$([ "$cur" = "$IMG_A" ] && echo "$IMG_B" || echo "$IMG_A")
+sed -i "s|image: $cur\$|image: $next|" "$MANIFESTS_DIR/3-api.yaml"
+git -C "$MANIFESTS_DIR" commit -qam "exp(v2): base do C3 — $cur -> $next"
+git -C "$MANIFESTS_DIR" push -q origin "HEAD:$BRANCH"
+wait_argo "$(git -C "$MANIFESTS_DIR" rev-parse HEAD)" || exit 1
+log "base do C3 GitOps: $cur -> $next"
+
 kubectl -n argocd port-forward svc/argocd-server 8443:443 >/dev/null 2>&1 &
 PF=$!; trap 'kill $PF 2>/dev/null' EXIT; sleep 3
 export WEBHOOK_URL=https://localhost:8443/api/webhook
