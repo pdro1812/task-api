@@ -46,7 +46,7 @@ node_digest() { docker exec tcc-worker crictl inspecti -o go-template --template
   echo "task-api: $(git rev-parse HEAD)$([ -n "$(git status --porcelain -- experiments ':!experiments/results')" ] && echo ' (ATENÇÃO: árvore com alterações)')"
   echo "task-api-manifests: $(git -C "$MANIFESTS_DIR" fetch -q origin && git -C "$MANIFESTS_DIR" rev-parse origin/main) (Argo CD: $(kubectl -n argocd get application task-api-app -o jsonpath='{.status.sync.revision}'))"
   echo "Ajustes durante a bateria: sync automático do Argo CD desligado; imagePullPolicy=IfNotPresent; Service NodePort 30080"
-  echo "Carga: k6 constant-arrival-rate 50 req/s, GET /tasks (5 tarefas semeadas), timeout 5 s, PRE_VUS=600 MAX_VUS=1000"
+  echo "Carga: k6 constant-arrival-rate 50 req/s, GET /tasks (5 tarefas semeadas), timeout 5 s, MAX_VUS=1000, PRE_VUS=50 com keep-alive e 600 sem keep-alive"
   echo "sha256 dos scripts:"
   sha256sum experiments/run-noite1.sh experiments/run-c1-randomizado.sh experiments/run-redis-outage.sh \
     experiments/monitor.sh experiments/k6/carga-constante.js | sed 's/^/  /'
