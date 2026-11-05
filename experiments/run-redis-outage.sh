@@ -13,7 +13,7 @@ DURATION=${DURATION:-150}
 OUT=${OUT:-experiments/results}
 mkdir -p "$OUT"
 
-for i in $(seq 1 "$RUNS"); do
+for i in $(seq "${START:-1}" "$RUNS"); do
   echo "== rodada $i ($MODE)"
   kubectl -n "$NS" rollout status deploy/redis --timeout=120s
   kubectl -n "$NS" rollout status deploy/task-api --timeout=120s

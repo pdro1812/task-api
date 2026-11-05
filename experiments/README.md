@@ -25,3 +25,19 @@ Rode pelo menos 10 rodadas por configuração e reporte média e desvio-padrão:
 ```bash
 python3 experiments/analyze.py experiments/results/*.csv
 ```
+
+## Opções adicionais
+
+- `carga-constante.js`: `PRE_VUS`/`MAX_VUS` (VUs pré-alocados/máximos; use `PRE_VUS=300` quando houver timeouts, para o k6 não descartar iterações) e `NO_REUSE=1` (uma conexão TCP nova por requisição, para observar o efeito da readiness sobre clientes novos).
+- `run-redis-outage.sh`: `START=<n>` retoma a partir da rodada n.
+- `measure-rollback.sh` (GitOps): `BRANCH` (branch acompanhado pelo ArgoCD), `REFRESH=1` (refresh manual via anotação), `WEBHOOK=1` + `WEBHOOK_URL` (envia o payload de push do GitHub ao `argocd-server`) e `LABEL` (nome da variante no CSV).
+- Gere o tráfego pelo Service (NodePort ou Ingress), não por `kubectl port-forward`: o port-forward fixa um pod e ignora readiness/endpoints.
+
+## Análise
+
+```bash
+cd experiments/results
+python3 ../final_analysis.py . final      # tabela, Mann-Whitney U e gráficos (300 dpi); requer matplotlib e scipy
+python3 ../c1_tempos.py > final/c1_tempos.csv
+python3 ../plot_rps.py rodada.png redis-failfast-rdfalse-1.csv   # linha do tempo de uma rodada
+```
