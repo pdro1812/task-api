@@ -5,6 +5,8 @@
 #   <prefixo>.endpoints  epoch ip=ready ... dos EndpointSlices do task-api-service (a cada 0,5 s, só mudanças)
 #   <prefixo>.cpu        epoch %cpu_host (a cada 1 s, de /proc/stat)
 #   <prefixo>.docker     epoch nó %cpu mem (a cada ~2 s, docker stats dos nós do kind)
+#   <prefixo>.metrics    epoch ip linha do /metrics de cada Pod da API (a cada 2 s; redis_up, breaker, memória…)
+#   <prefixo>.redis      epoch estado do Pod do Redis (Ready, reinícios, último término), só mudanças
 MON_NS=${NS:-task-api}
 MON_PIDS=()
 
@@ -37,10 +39,38 @@ _mon_docker() {
   done
 }
 
+_mon_metrics() {
+  # /metrics de cada Pod da API, lido de dentro de um nó (os IPs de Pod não são roteáveis a partir do host)
+  while true; do
+    local t ips
+    t=$(date +%s.%N)
+    ips=$(kubectl -n "$MON_NS" get pods -l app=task-api -o jsonpath='{range .items[*]}{.status.podIP} {end}' 2>/dev/null)
+    for ip in $ips; do
+      docker exec tcc-worker curl -s -m 1 "http://$ip:3000/metrics" 2>/dev/null \
+        | grep -E '^(redis_up|circuit_breaker_open|process_resident_memory_bytes|nodejs_heap_size_used_bytes|nodejs_eventloop_lag_seconds|http_requests_total)[ {]' \
+        | sed "s|^|$t $ip |"
+    done
+    sleep 2
+  done
+}
+
+_mon_redis() {
+  # Estado do Pod do Redis (Ready, reinícios, motivo e fim do último término), só nas mudanças
+  local last=""
+  while true; do
+    local cur
+    cur=$(kubectl -n "$MON_NS" get pods -l app=redis -o jsonpath='{range .items[*]}{.metadata.name} ready={.status.containerStatuses[0].ready} restarts={.status.containerStatuses[0].restartCount} last={.status.containerStatuses[0].lastState.terminated.reason}@{.status.containerStatuses[0].lastState.terminated.finishedAt} {end}' 2>/dev/null)
+    if [ "$cur" != "$last" ]; then echo "$(date +%s.%N) $cur"; last=$cur; fi
+    sleep 0.5
+  done
+}
+
 monitor_start() {
   _mon_endpoints > "$1.endpoints" & MON_PIDS+=($!)
   _mon_cpu > "$1.cpu" & MON_PIDS+=($!)
   _mon_docker > "$1.docker" & MON_PIDS+=($!)
+  _mon_metrics > "$1.metrics" & MON_PIDS+=($!)
+  _mon_redis > "$1.redis" & MON_PIDS+=($!)
 }
 
 monitor_stop() {

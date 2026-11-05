@@ -4,7 +4,8 @@
 #   FAULT=outage (padrão): Redis indisponível (scale 0 → 1; a conexão é fechada)
 #   FAULT=pause:           Redis pendurado (CLIENT PAUSE ALL; a conexão continua aberta, os comandos não respondem)
 # Uso: MODE=failfast RUNS=10 ./experiments/run-redis-outage.sh
-#   START=n retoma da rodada n; MONITOR=1 grava EndpointSlices e CPU (experiments/monitor.sh).
+#   START=n retoma da rodada n; MONITOR=1 grava EndpointSlices, CPU, /metrics e o Pod do Redis (experiments/monitor.sh);
+#   COUNT_TASKS=1 grava em <base>.tasks o LLEN da lista de tarefas antes da falha e depois da recuperação.
 # Pré-requisito: tráfego pelo Service (NodePort/Ingress) em BASE_URL; port-forward ignora readiness.
 set -euo pipefail
 NS=${NS:-task-api}
@@ -34,6 +35,7 @@ for i in $(seq "${START:-1}" "$RUNS"); do
   k6 run -q -e DURATION="${DURATION}s" --out csv="$base.csv" experiments/k6/carga-constante.js &
   K6=$!
   sleep "$FAIL_AT"
+  [ "${COUNT_TASKS:-0}" = 1 ] && echo "antes $(redis_cli LLEN tasks)" > "$base.tasks"
   date +%s.%N > "$base.fail"
   if [ "$FAULT" = pause ]; then
     redis_cli CLIENT PAUSE $(( (RECOVER_AT - FAIL_AT) * 1000 )) ALL
@@ -45,6 +47,11 @@ for i in $(seq "${START:-1}" "$RUNS"); do
   [ "$FAULT" = pause ] || kubectl -n "$NS" scale deploy/redis --replicas=1
   wait "$K6" || true
   [ "${MONITOR:-0}" = 1 ] && monitor_stop
+  if [ "${COUNT_TASKS:-0}" = 1 ]; then
+    kubectl -n "$NS" rollout status deploy/redis --timeout=180s >/dev/null
+    until redis_cli PING 2>/dev/null | grep -q PONG; do sleep 1; done
+    echo "depois $(redis_cli LLEN tasks)" >> "$base.tasks"
+  fi
   # Evidência do comportamento do orquestrador: reinícios e endpoints do Service
   kubectl -n "$NS" get pods -o wide > "$base.pods"
   sleep 20
