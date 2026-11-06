@@ -29,10 +29,11 @@ Os cenários GitOps (noite2) fazem commits e pushes no repositório de manifesto
 do experimento (imagens locais, NodePort 30080 e o Application acompanhando o branch). Num cluster novo, a chave do
 Sealed Secrets é outra: o `SealedSecret` versionado não decifra, e o `setup.sh` gera uma senha local para o Redis.
 
-Análise:
+Análise (os dados da bateria v2 usados no artigo estão em `experiments/dados/`, ver o README de lá):
 
 ```bash
-python3 experiments/analysis_v2.py experiments/results/v2 experiments/results/v2/analise
+zstd -dc experiments/dados/bateria-v2.tar.zst | tar -xf - -C /tmp
+python3 experiments/analysis_v2.py /tmp/bateria-v2 /tmp/analise
 ```
 
 ## Cenários
