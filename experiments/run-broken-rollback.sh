@@ -23,7 +23,16 @@ mkdir -p "$OUT"
 
 img() { kubectl -n "$NS" get deploy/task-api -o jsonpath='{.spec.template.spec.containers[0].image}'; }
 refresh() { kubectl -n argocd annotate application task-api-app argocd.argoproj.io/refresh=normal --overwrite >/dev/null; }
-git_push() { git -C "$MANIFESTS_DIR" push -q origin "HEAD:${BRANCH:?defina BRANCH}"; refresh; }
+# Push com até 4 novas tentativas (2, 4, 8, 16 s): uma recusa transitória do GitHub não pode abortar a bateria
+git_push() {
+  local d
+  for d in 0 2 4 8 16; do
+    sleep "$d"
+    git -C "$MANIFESTS_DIR" push -q origin "HEAD:${BRANCH:?defina BRANCH}" && { refresh; return 0; }
+    echo "push falhou; nova tentativa"
+  done
+  return 1
+}
 
 for i in $(seq "${START:-1}" "$RUNS"); do
   base="$OUT/quebrada-$METHOD-$i"

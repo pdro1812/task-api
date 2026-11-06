@@ -33,7 +33,10 @@ case "$METHOD" in
     kubectl -n "$NS" rollout undo deploy/task-api ;;
   gitops)
     git -C "$MANIFESTS_DIR" revert --no-edit HEAD
-    git -C "$MANIFESTS_DIR" push -q origin "HEAD:${BRANCH:-main}"
+    for d in 0 2 4 8 16; do  # novas tentativas: uma recusa transitória do GitHub não aborta a rodada
+      sleep "$d"; git -C "$MANIFESTS_DIR" push -q origin "HEAD:${BRANCH:-main}" && break
+      [ "$d" = 16 ] && exit 1; echo "push falhou; nova tentativa"
+    done
     # Sem webhook o ArgoCD só percebe no próximo polling; REFRESH=1 força o refresh (equivale a argocd app get --refresh)
     if [ "${REFRESH:-0}" = 1 ]; then
       kubectl -n argocd annotate application task-api-app argocd.argoproj.io/refresh=normal --overwrite >/dev/null
