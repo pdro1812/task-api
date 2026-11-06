@@ -41,6 +41,14 @@ def k6_extras(path):
     return {'descartadas': dropped, 'reuso_pct': 100 * (1 - new / n) if n else float('nan')}
 
 
+def heap_peak(path):
+    """Pico do heap do Node.js (MiB), entre os Pods, durante a falha (.fail a .recover), pelo /metrics."""
+    fail, rec = fa.marker(path, '.fail'), fa.marker(path, '.recover')
+    vals = [float(line.split()[3]) for line in open(path[:-4] + '.metrics')
+            if ' nodejs_heap_size_used_bytes ' in line and fail <= float(line.split()[0]) < rec]
+    return max(vals) / 2**20 if vals else float('nan')
+
+
 def load(results):
     runs = defaultdict(list)
     for pattern in ('redis-*.csv', 'pausa-*.csv', 'rolling-*.csv', 'quebrada-*.csv'):
@@ -49,6 +57,8 @@ def load(results):
                 continue  # rodada incompleta
             s = fa.summarize(path)
             s.update(k6_extras(path))
+            if os.path.basename(path).startswith(('redis-', 'pausa-')) and os.path.exists(path[:-4] + '.metrics'):
+                s['heap_mib'] = heap_peak(path)
             if os.path.basename(path).startswith('quebrada-'):
                 m = {k: fa.marker(path, '.' + k) for k in ('deploy', 'applied', 'detect', 'undo', 'reverted', 'done')}
                 d = lambda a, b: m[b] - m[a] if m[a] and m[b] else float('nan')  # noqa: E731
@@ -96,6 +106,8 @@ PAIRS = [
     ('rolling-prestop', 'rolling-noprestop'),
 ]
 PAIR_METRICS = ['ok_pct', '503_pct', 'sem_resposta_pct', 'p99_ms', 'recuperacao_s']
+# Memória: custo de reter requisições (baseline com a fila offline × fail-fast no C1; fail-fast × breaker no C4)
+HEAP_PAIRS = [('redis-baseline-rdfalse', 'redis-failfast-rdfalse'), ('pausa-failfast-rdfalse', 'pausa-breaker-rdfalse')]
 
 
 def stats_rows(vals, poller, c5):
@@ -109,6 +121,9 @@ def stats_rows(vals, poller, c5):
             for m in ('primeira_nova_s', 'toda_nova_s'):
                 tests.append(('C3 imperativo', f'C3 {label}', m, [x[m] for x in poller['imperativo']],
                               [x[m] for x in poller[label]]))
+    for a, b in HEAP_PAIRS:
+        if a in vals and b in vals:
+            tests.append((a, b, 'heap_mib', vals[a]['heap_mib'], vals[b]['heap_mib']))
     if 'quebrada-imperativo' in c5 and 'quebrada-gitops' in c5:
         for m in ('estabiliza_s', 'ok_pct'):
             tests.append(('quebrada-imperativo', 'quebrada-gitops', m, c5['quebrada-imperativo'][m],
@@ -190,7 +205,8 @@ def main(results, out):
     os.makedirs(out, exist_ok=True)
     runs = load(results)
     poller = load_poller(results)
-    vals = {sc: {m: [s.get(m, float('nan')) for _, s in r] for m in K6_METRICS + ['aplicada_s', 'rollback_aplicado_s', 'estabiliza_s']}
+    vals = {sc: {m: [s.get(m, float('nan')) for _, s in r]
+                 for m in K6_METRICS + ['aplicada_s', 'rollback_aplicado_s', 'estabiliza_s', 'heap_mib']}
             for sc, r in runs.items()}
     c5 = {sc: v for sc, v in vals.items() if sc.startswith('quebrada-')}
 
