@@ -27,7 +27,7 @@ has_argo() { kubectl -n argocd get application task-api-app >/dev/null 2>&1; }
 # nenhuma sync esteja em andamento nem prestes a começar, e depois de restaurar é preciso esperar a sync nova.
 argo_state() { kubectl -n argocd get application task-api-app -o jsonpath='{.status.operationState.phase}|{.status.operationState.finishedAt}|{.spec.syncPolicy.automated}|{.status.sync.status}/{.status.health.status}' 2>/dev/null; }
 disable_autosync() {
-  local stable=0 st
+  local stable=0 st phase auto
   for _ in $(seq 1 120); do
     kubectl -n argocd patch application task-api-app --type=json \
       -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
@@ -40,12 +40,12 @@ disable_autosync() {
   echo "AVISO: não foi possível estabilizar o Argo CD sem sync automático ($st)" >&2
 }
 wait_new_sync() {
-  local t0=$1 st
+  local t0=$1 st phase finished sync_health
   for _ in $(seq 1 120); do
     kubectl -n argocd annotate application task-api-app argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
     st=$(argo_state)
-    IFS='|' read -r phase finished _ status <<< "$st"
-    if [ "$phase" = Succeeded ] && [[ "$finished" > "$t0" ]] && [ "$status" = Synced/Healthy ]; then return 0; fi
+    IFS='|' read -r phase finished _ sync_health <<< "$st"
+    if [ "$phase" = Succeeded ] && [[ "$finished" > "$t0" ]] && [ "$sync_health" = Synced/Healthy ]; then return 0; fi
     sleep 5
   done
   echo "AVISO: o Argo CD não concluiu uma sync nova ($st)" >&2
@@ -99,9 +99,9 @@ case "$BATTERY" in
       c5) GOOD_IMAGE=$IMG_A BROKEN_IMAGE=$IMG_BROKEN METHOD=imperativo MONITOR=1 \
             bash experiments/run-broken-rollback.sh ;;
     esac
-    status=$?
+    rc=$?
     restore
     echo "resultados em $OUT"
-    exit $status ;;
+    exit $rc ;;
   *) echo "bateria desconhecida: $BATTERY" >&2; exit 2 ;;
 esac
