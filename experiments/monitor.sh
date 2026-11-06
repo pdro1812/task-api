@@ -7,10 +7,12 @@
 #   <prefixo>.docker     epoch nó %cpu mem (a cada ~2 s, docker stats dos nós do kind)
 #   <prefixo>.metrics    epoch ip linha do /metrics de cada Pod da API (a cada 2 s; redis_up, breaker, memória…)
 #   <prefixo>.redis      epoch estado do Pod do Redis (Ready, reinícios, último término), só mudanças
+#   <prefixo>.pods-stats epoch nó pod contêiner cpu_ns_acumulado memoria_working_set (a cada 2 s, crictl stats)
 MON_NS=${NS:-task-api}
 MON_PIDS=()
 
 _mon_endpoints() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   local last=""
   while true; do
     local cur
@@ -22,6 +24,7 @@ _mon_endpoints() {
 }
 
 _mon_cpu() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   local a b
   read -r _ a1 a2 a3 a4 a5 a6 a7 _ < /proc/stat
   while sleep 1; do
@@ -33,6 +36,7 @@ _mon_cpu() {
 }
 
 _mon_docker() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   while true; do
     docker stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}}' tcc-control-plane tcc-worker tcc-worker2 2>/dev/null \
       | while read -r l; do echo "$(date +%s.%N) $l"; done
@@ -40,6 +44,7 @@ _mon_docker() {
 }
 
 _mon_metrics() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   # /metrics de cada Pod da API, lido de dentro de um nó (os IPs de Pod não são roteáveis a partir do host)
   while true; do
     local t ips
@@ -47,7 +52,7 @@ _mon_metrics() {
     ips=$(kubectl -n "$MON_NS" get pods -l app=task-api -o jsonpath='{range .items[*]}{.status.podIP} {end}' 2>/dev/null)
     for ip in $ips; do
       docker exec tcc-worker curl -s -m 1 "http://$ip:3000/metrics" 2>/dev/null \
-        | grep -E '^(redis_up|circuit_breaker_open|process_resident_memory_bytes|nodejs_heap_size_used_bytes|nodejs_eventloop_lag_seconds|http_requests_total)[ {]' \
+        | grep -E '^(redis_up|circuit_breaker_open|process_resident_memory_bytes|process_cpu_seconds_total|nodejs_heap_size_used_bytes|nodejs_eventloop_lag_seconds|http_requests_total)[ {]' \
         | sed "s|^|$t $ip |"
     done
     sleep 2
@@ -55,6 +60,7 @@ _mon_metrics() {
 }
 
 _mon_redis() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
   # Estado do Pod do Redis (Ready, reinícios, motivo e fim do último término), só nas mudanças
   local last=""
   while true; do
@@ -65,12 +71,33 @@ _mon_redis() {
   done
 }
 
+_mon_pods() {
+  set +eu +o pipefail  # um erro pontual (Pod em troca, curl falhou) não pode encerrar o monitor
+  # CPU (ns acumulados) e memória (working set) de cada contêiner do namespace, pelo runtime dos nós
+  while true; do
+    local t
+    t=$(date +%s.%N)
+    for n in tcc-worker tcc-worker2; do
+      docker exec "$n" crictl stats --label "io.kubernetes.pod.namespace=$MON_NS" -o json 2>/dev/null \
+        | python3 -c "
+import json, sys
+for s in json.load(sys.stdin).get('stats', []):
+    a = s['attributes']['labels']
+    print('$t', '$n', a['io.kubernetes.pod.name'], a['io.kubernetes.container.name'],
+          s['cpu'].get('usageCoreNanoSeconds', {}).get('value', ''), s['memory'].get('workingSetBytes', {}).get('value', ''))
+" 2>/dev/null
+    done
+    sleep 2
+  done
+}
+
 monitor_start() {
   _mon_endpoints > "$1.endpoints" & MON_PIDS+=($!)
   _mon_cpu > "$1.cpu" & MON_PIDS+=($!)
   _mon_docker > "$1.docker" & MON_PIDS+=($!)
   _mon_metrics > "$1.metrics" & MON_PIDS+=($!)
   _mon_redis > "$1.redis" & MON_PIDS+=($!)
+  _mon_pods > "$1.pods-stats" & MON_PIDS+=($!)
 }
 
 monitor_stop() {
