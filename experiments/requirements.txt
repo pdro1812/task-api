@@ -1,0 +1,4 @@
+# Análise (experiments/analysis_v2.py, final_analysis.py, c1_tempos.py, plot_rps.py), Python >= 3.12
+matplotlib==3.11.2
+numpy==2.5.4
+scipy==1.18.1

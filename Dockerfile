@@ -1,4 +1,5 @@
-FROM node:22-alpine
+# Base fixada pelo digest usado nas baterias v2 (experiments/versions.env)
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
 
 # Instala o tini (init system para containers)
 # Isso garante que os sinais do Kubernetes (SIGTERM) cheguem no Node.js

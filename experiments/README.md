@@ -2,15 +2,38 @@
 
 Scripts para reproduzir os cenários avaliados. Todos geram arquivos em `experiments/results/` (ignorado pelo git).
 
-## Ambiente
+## Reprodução
+
+Pré-requisitos: Docker (usuário com acesso ao daemon), kind v0.30.0, kubectl ≥ 1.34, k6 v2.3.0, git, Python 3.12+ e
+um clone do repositório de manifestos ao lado deste (`../task-api-manifests`). As versões e os digests usados nas
+baterias v2 estão em `experiments/versions.env`; o ambiente exato de cada bateria está em
+`experiments/results/v2/ambiente-*.txt`.
 
 ```bash
-kind create cluster --name tcc --config experiments/kind-cluster.yaml
-# instalar ArgoCD e aplicar argocd-app.yaml do repositório de manifestos
-kubectl -n task-api port-forward svc/task-api-service 8080:80
+./experiments/setup.sh                       # cluster kind, imagens, Sealed Secrets, Argo CD e aplicação (idempotente)
+pip install -r experiments/requirements.txt  # análise
 ```
 
-Anote no artigo: CPU/RAM da máquina host, versões do kind, Kubernetes, ArgoCD, k6, Node.js e Redis.
+Um ponto de entrada por bateria (`RUNS` rodadas por configuração, padrão 10; resultados em `OUT`):
+
+| Comando | Cenários | Duração (RUNS=10) |
+|---|---|---|
+| `./experiments/run.sh noite1` | C1 (10 configurações, ordem sorteada) + C4 (3 modos) | ~7 h |
+| `./experiments/run.sh noite2` | C2 (com/sem preStop) + C3 (imperativo e GitOps) + C5 (imperativo e GitOps) | ~3 h |
+| `./experiments/run.sh c1 failfast:false:keepalive` | uma configuração do C1 | ~35 min |
+| `./experiments/run.sh c4 breaker` | um modo do C4 | ~35 min |
+| `./experiments/run.sh c5` | C5 com rollback imperativo | ~35 min |
+
+Os cenários GitOps (noite2) fazem commits e pushes no repositório de manifestos: use um fork, aponte
+`argocd-app.yaml` para ele (`GITOPS=1 ./experiments/setup.sh`) e crie o branch `experimento-v2` com a configuração
+do experimento (imagens locais, NodePort 30080 e o Application acompanhando o branch). Num cluster novo, a chave do
+Sealed Secrets é outra: o `SealedSecret` versionado não decifra, e o `setup.sh` gera uma senha local para o Redis.
+
+Análise:
+
+```bash
+python3 experiments/analysis_v2.py experiments/results/v2 experiments/results/v2/analise
+```
 
 ## Cenários
 
