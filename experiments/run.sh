@@ -23,37 +23,37 @@ mkdir -p "$OUT"
 NODE_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' tcc-worker)
 export BASE_URL=http://$NODE_IP:30080
 has_argo() { kubectl -n argocd get application task-api-app >/dev/null 2>&1; }
-# Espera terminar qualquer operação de sync do Argo CD em andamento (uma sync iniciada antes do prepare desfaria
-# as mudanças do experimento no meio da rodada)
-wait_argo_idle() {
-  local phase
-  for _ in $(seq 1 90); do
-    phase=$(kubectl -n argocd get application task-api-app -o jsonpath='{.status.operationState.phase}' 2>/dev/null)
-    [ "$phase" != Running ] && return 0; sleep 5
+# O task-api-app gerencia a si mesmo e o selfHeal reage a qualquer mudança: antes de mexer no cluster é preciso que
+# nenhuma sync esteja em andamento nem prestes a começar, e depois de restaurar é preciso esperar a sync nova.
+argo_state() { kubectl -n argocd get application task-api-app -o jsonpath='{.status.operationState.phase}|{.status.operationState.finishedAt}|{.spec.syncPolicy.automated}|{.status.sync.status}/{.status.health.status}' 2>/dev/null; }
+disable_autosync() {
+  local stable=0 st
+  for _ in $(seq 1 120); do
+    kubectl -n argocd patch application task-api-app --type=json \
+      -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
+    st=$(argo_state)
+    IFS='|' read -r phase _ auto _ <<< "$st"
+    if [ "$phase" != Running ] && [ -z "$auto" ]; then stable=$((stable + 1)); else stable=0; fi
+    [ "$stable" -ge 10 ] && return 0   # 10 verificações seguidas (~20 s) sem sync e sem sync automático
+    sleep 2
   done
-  echo "AVISO: sync do Argo CD ainda em andamento" >&2
+  echo "AVISO: não foi possível estabilizar o Argo CD sem sync automático ($st)" >&2
 }
-wait_argo_synced() {
-  local s
-  for _ in $(seq 1 90); do
+wait_new_sync() {
+  local t0=$1 st
+  for _ in $(seq 1 120); do
     kubectl -n argocd annotate application task-api-app argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
-    s=$(kubectl -n argocd get application task-api-app -o jsonpath='{.status.sync.status}/{.status.health.status}')
-    [ "$s" = Synced/Healthy ] && { wait_argo_idle; return 0; }; sleep 10
+    st=$(argo_state)
+    IFS='|' read -r phase finished _ status <<< "$st"
+    if [ "$phase" = Succeeded ] && [[ "$finished" > "$t0" ]] && [ "$status" = Synced/Healthy ]; then return 0; fi
+    sleep 5
   done
-  echo "AVISO: Argo CD não ficou Synced/Healthy ($s)" >&2
+  echo "AVISO: o Argo CD não concluiu uma sync nova ($st)" >&2
 }
 
 prepare() {
   # Sem sincronização automática durante a injeção de falhas; tráfego pelo Service (NodePort); imagem local
-  if has_argo; then
-    kubectl -n argocd patch application task-api-app --type=json \
-      -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
-    wait_argo_idle
-    # O task-api-app gerencia a si mesmo: uma sync que estava em andamento reaplica o argocd-app.yaml do Git e
-    # religa o sync automático; por isso desliga-se de novo depois que ela termina
-    kubectl -n argocd patch application task-api-app --type=json \
-      -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
-  fi
+  has_argo && disable_autosync
   kubectl -n $NS patch svc/task-api-service -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":3000,"nodePort":30080}]}}' >/dev/null
   kubectl -n $NS set image deploy/task-api task-api="$IMG_A" >/dev/null
   kubectl -n $NS patch deploy/task-api --type=json \
@@ -71,8 +71,13 @@ restore() {
   if has_argo; then
     # Volta ao Git: o selfHeal desfaz env, imagem, imagePullPolicy e NodePort
     git -C "$MANIFESTS_DIR" fetch -q origin 2>/dev/null
+    local t0
+    t0=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     { git -C "$MANIFESTS_DIR" show origin/main:argocd-app.yaml 2>/dev/null || cat "$MANIFESTS_DIR/argocd-app.yaml"; } | kubectl apply -f - >/dev/null
-    wait_argo_synced
+    # força uma sync agora (o selfHeal faria o mesmo, mas sem prazo) e espera que ela termine
+    kubectl -n argocd patch application task-api-app --type=merge \
+      -p '{"operation":{"initiatedBy":{"username":"run.sh"},"sync":{"prune":true}}}' >/dev/null
+    wait_new_sync "$t0"
   else
     kubectl -n $NS set env deploy/task-api RESILIENCE_MODE- READINESS_DEPENDS_ON_REDIS- >/dev/null
     kubectl -n $NS patch svc/task-api-service --type=json \
