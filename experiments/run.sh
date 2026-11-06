@@ -23,11 +23,37 @@ mkdir -p "$OUT"
 NODE_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' tcc-worker)
 export BASE_URL=http://$NODE_IP:30080
 has_argo() { kubectl -n argocd get application task-api-app >/dev/null 2>&1; }
+# Espera terminar qualquer operação de sync do Argo CD em andamento (uma sync iniciada antes do prepare desfaria
+# as mudanças do experimento no meio da rodada)
+wait_argo_idle() {
+  local phase
+  for _ in $(seq 1 90); do
+    phase=$(kubectl -n argocd get application task-api-app -o jsonpath='{.status.operationState.phase}' 2>/dev/null)
+    [ "$phase" != Running ] && return 0; sleep 5
+  done
+  echo "AVISO: sync do Argo CD ainda em andamento" >&2
+}
+wait_argo_synced() {
+  local s
+  for _ in $(seq 1 90); do
+    kubectl -n argocd annotate application task-api-app argocd.argoproj.io/refresh=normal --overwrite >/dev/null 2>&1
+    s=$(kubectl -n argocd get application task-api-app -o jsonpath='{.status.sync.status}/{.status.health.status}')
+    [ "$s" = Synced/Healthy ] && { wait_argo_idle; return 0; }; sleep 10
+  done
+  echo "AVISO: Argo CD não ficou Synced/Healthy ($s)" >&2
+}
 
 prepare() {
   # Sem sincronização automática durante a injeção de falhas; tráfego pelo Service (NodePort); imagem local
-  has_argo && kubectl -n argocd patch application task-api-app --type=json \
-    -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
+  if has_argo; then
+    kubectl -n argocd patch application task-api-app --type=json \
+      -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
+    wait_argo_idle
+    # O task-api-app gerencia a si mesmo: uma sync que estava em andamento reaplica o argocd-app.yaml do Git e
+    # religa o sync automático; por isso desliga-se de novo depois que ela termina
+    kubectl -n argocd patch application task-api-app --type=json \
+      -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]' >/dev/null 2>&1
+  fi
   kubectl -n $NS patch svc/task-api-service -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":3000,"nodePort":30080}]}}' >/dev/null
   kubectl -n $NS set image deploy/task-api task-api="$IMG_A" >/dev/null
   kubectl -n $NS patch deploy/task-api --type=json \
@@ -46,6 +72,7 @@ restore() {
     # Volta ao Git: o selfHeal desfaz env, imagem, imagePullPolicy e NodePort
     git -C "$MANIFESTS_DIR" fetch -q origin 2>/dev/null
     { git -C "$MANIFESTS_DIR" show origin/main:argocd-app.yaml 2>/dev/null || cat "$MANIFESTS_DIR/argocd-app.yaml"; } | kubectl apply -f - >/dev/null
+    wait_argo_synced
   else
     kubectl -n $NS set env deploy/task-api RESILIENCE_MODE- READINESS_DEPENDS_ON_REDIS- >/dev/null
     kubectl -n $NS patch svc/task-api-service --type=json \
