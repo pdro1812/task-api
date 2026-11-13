@@ -48,6 +48,8 @@ for s in /sys/devices/system/cpu/cpu*/cpuidle/state*/disable; do
   n=$(basename "$(dirname "$s")" | tr -dc 0-9)
   [ "$n" -ge 2 ] && echo 1 | sudo tee "$s" >/dev/null
 done
+# Leitura do RAPL sem sudo durante as baterias (volta ao padrão no reboot)
+for z in intel-rapl:0 intel-rapl:0:0; do sudo chmod o+r /sys/class/powercap/$z/energy_uj; done
 grep -H . /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor /sys/devices/system/cpu/intel_pstate/no_turbo
 
 {

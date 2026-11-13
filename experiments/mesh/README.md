@@ -47,6 +47,20 @@ com um teste de fumaça que deve responder 200 nos três endereços:
 
 Para usar o cluster direto: `export KUBECONFIG=$PWD/.state/kubeconfig`. Prometheus: `http://192.168.150.10:30090`.
 
+## Piloto e bateria
+
+```bash
+./03-config.sh B && ./04-saturacao.sh     # maior taxa dentro do SLO sem mesh -> .state/saturacao.env
+./05-bateria.sh                           # todas as configurações, 30/60/90% da saturação, 10 rodadas
+CONFIGS="B IS" ./05-bateria.sh <dir>      # só algumas configurações; o mesmo <dir> retoma de onde parou
+```
+
+Os SLOs do piloto (`SLO_ECHO_MS=20`, `SLO_OB_MS=500`, `SLO_HOTEL_MS=100`) e as taxas iniciais são provisórios:
+ajuste depois de olhar a primeira saída. Cada rodada é 1 min de aquecimento + 3 min de medição; a bateria completa
+leva cerca de 40 h. Resultados em `experiments/results/mesh/bateria-*/<config>/<app>-<carga>-<rodada>/`:
+`k6-summary.json`, `k6-reqs.csv.gz` (cada requisição), `prom-*.json` (CPU e memória por contêiner, CPU por nó),
+`meta.json` (energia RAPL em joules) e, por configuração, `idle.json` (potência ociosa) e `pods.txt`.
+
 ## Decisões de desenho
 
 - O Cilium é a CNI em todas as configurações; só o mesh muda. Na configuração CI, liga-se a criptografia WireGuard e uma
