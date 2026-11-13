@@ -3,6 +3,8 @@ set -euo pipefail
 MESH_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 STATE="$MESH_DIR/.state"
 mkdir -p "$STATE"
+# .state pode ser um link para outro disco; o QEMU (usuário libvirt-qemu) precisa do caminho real, fora do $HOME
+STATE=$(realpath "$STATE")
 source "$MESH_DIR/versions.env"
 export LIBVIRT_DEFAULT_URI=qemu:///system
 export KUBECONFIG="$STATE/kubeconfig"
@@ -24,7 +26,7 @@ p_core_pairs() {
   cpus=$(cat /sys/devices/cpu_core/cpus 2>/dev/null) || die "não achei /sys/devices/cpu_core/cpus (CPU híbrida Intel esperada)"
   for c in $(seq $(echo "$cpus" | cut -d- -f1) $(echo "$cpus" | cut -d- -f2)); do
     cat /sys/devices/system/cpu/cpu$c/topology/thread_siblings_list
-  done | sort -t, -k1,1n -u
+  done | sed 's/-/,/' | sort -t, -k1,1n -u   # o kernel escreve "0-1" ou "0,1"
 }
 e_cores() { cat /sys/devices/cpu_atom/cpus; }
 wait_ssh() {

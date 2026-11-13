@@ -22,7 +22,7 @@ sudo usermod -aG libvirt,kvm $USER        # depois feche e abra o terminal
 cd task-api/experiments/mesh
 ./00-host.sh      # governor performance, sem turbo, sem C-states profundos; confere RAPL e ferramentas
 ./01-vms.sh       # cria as 4 VMs (~10 min, baixa a imagem do Ubuntu 24.04)
-./02-cluster.sh   # k3s + Cilium (CNI) + Prometheus e grava o snapshot "base" (~15 min)
+./02-cluster.sh   # k3s + Cilium (CNI) + Prometheus, pré-carrega as imagens (02b) e grava o snapshot "base" (~25 min)
 ```
 
 `00-host.sh` precisa ser rodado de novo após cada reboot. Para desfazer: `./00-host.sh --restore`.
@@ -67,14 +67,24 @@ leva cerca de 40 h. Resultados em `experiments/results/mesh/bateria-*/<config>/<
   regra L7 que leva o tráfego HTTP/gRPC ao Envoy do nó.
 - O salto de entrada (k6 de fora do cluster até o pod de borda) é texto puro em todos os meshes; o tráfego leste-oeste
   é cifrado (STRICT no Istio, `all-authenticated` no Linkerd).
-- Cada deployment é fixado num nó (rodízio), para que a posição dos pods seja a mesma em todas as configurações.
+- Cada deployment das aplicações é fixado num nó de trabalho (rodízio em ordem alfabética), para que a posição dos pods
+  seja a mesma em todas as configurações. Os waypoints da IA7 também são fixados: echo no w1, ob no w2, hotel no w3.
+- Os planos de controle ficam no nó cp, com a tolerância ao taint dele: istiod, o controle do Linkerd (destination,
+  identity, proxy-injector), o operador do Cilium, o Prometheus e os componentes do k3s (coredns, metrics-server,
+  local-path-provisioner, com arquivos `.skip` para que o k3s não os reaplique). Assim não disputam CPU com as
+  aplicações nem mudam de nó entre rodadas. Os DaemonSets de plano de dados (cilium, cilium-envoy, ztunnel, istio-cni)
+  rodam em todos os nós.
+- As imagens de todas as configurações estão no snapshot base (`02b-preload-images.sh`, lista e digests em
+  `.state/imagens.txt`) e os manifestos usam `imagePullPolicy: IfNotPresent`: nenhuma rodada baixa imagens.
+- Hotel Reservation: os serviços se registram no Consul com o nome DNS do Service (`<Serviço>IP` no `config.json`,
+  por ConfigMap), não com o IP do pod. Assim o tráfego gRPC é endereçado ao Service em todos os meshes.
+- Linkerd com `all-authenticated`: os probes gRPC do kubelet (Online Boutique) chegam sem mTLS; só a rota
+  `/grpc.health.v1.Health/` é liberada para eles, o resto exige identidade do mesh.
 - Versões vazias em `versions.env` instalam a estável do dia; as instaladas ficam em `.state/versoes-instaladas.txt`.
 
 ## Pontos a validar no piloto
 
-Estes scripts ainda não rodaram no hardware final. Os pontos mais prováveis de ajuste:
+As seis configurações já passaram no teste de fumaça no hardware final. Ponto que já deu problema:
 
-- caminhos de CNI do k3s usados pelo Cilium e pelo Istio CNI (`/var/lib/rancher/k3s/data/cni` e
-  `/var/lib/rancher/k3s/agent/etc/cni/net.d`);
-- o modo proxy do fortio (`-M`) no relay do echo;
-- os manifestos do Hotel Reservation aplicados no namespace `hotel`.
+- caminhos de CNI: `/opt/cni/bin` e `/etc/cni/net.d` (com o flannel desligado, o containerd do k3s procura nos caminhos
+  padrão, e não em `/var/lib/rancher/k3s/...`; o cilium-cli usaria os do k3s se não forem passados explicitamente).

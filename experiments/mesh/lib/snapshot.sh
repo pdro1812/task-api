@@ -28,5 +28,9 @@ restore_base() {
   vms_shutdown
   for vm in "${VMS[@]}"; do virsh snapshot-revert "mesh-$vm" base >/dev/null; done
   vms_start
+  # Depois do revert o relógio da VM salta e o DNS demora a voltar; sem isso o primeiro pull de imagem falha
+  for vm in "${VMS[@]}"; do
+    for _ in $(seq 1 60); do vssh "$vm" 'getent ahostsv4 registry-1.docker.io >/dev/null' && break; sleep 2; done
+  done
   kubectl -n kube-system rollout status ds/cilium --timeout=300s >/dev/null
 }

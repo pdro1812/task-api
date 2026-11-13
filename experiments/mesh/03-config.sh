@@ -19,8 +19,6 @@ deploy_echo
 deploy_ob
 deploy_hotel
 apply_policies "$CFG"
-# o Linkerd injeta o proxy na criação do pod; a anotação do pod de entrada exige um rollout
-[ "$CFG" = LK ] && for ns in "${APP_NS[@]}"; do kubectl -n "$ns" rollout restart deploy >/dev/null; done
 wait_apps
 kubectl get pods -A -o wide | grep -E '^(echo|ob|hotel) ' | awk '{print $1, $2, $3, $8}' | column -t
 step "[$CFG] teste de fumaça (deve dar 200 nas três)"

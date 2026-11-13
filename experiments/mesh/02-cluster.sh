@@ -40,14 +40,20 @@ done
 record k3s "$(vssh cp 'k3s --version | head -1')"
 
 step "Cilium (CNI, sem recursos de mesh)"
+# operador no nó cp (o chart já tolera todos os taints); mantido nos valores do Helm para sobreviver ao upgrade da CI
+CILIUM_CP=(--set-string "operator.nodeSelector.kubernetes\\.io/os=linux"
+  --set-string "operator.nodeSelector.node-role\\.kubernetes\\.io/control-plane=true")
 if ! kubectl -n kube-system get ds cilium >/dev/null 2>&1; then
   ver_arg=(); [ -n "$CILIUM_VERSION" ] && ver_arg=(--version "$CILIUM_VERSION")
   # cni.exclusive=false e socketLB.hostNamespaceOnly=true: exigidos para o Istio (sidecar e ambient) e o Linkerd
-  # funcionarem sobre o Cilium. Caminhos de CNI do k3s.
+  # funcionarem sobre o Cilium. Caminhos de CNI explícitos: o cilium-cli detecta o k3s e usaria /var/lib/rancher/k3s/...,
+  # mas com o flannel desligado o containerd do k3s procura nos caminhos padrão.
   cilium install "${ver_arg[@]}" \
     --set ipam.mode=kubernetes --set kubeProxyReplacement=false --set operator.replicas=1 \
     --set cni.exclusive=false --set socketLB.hostNamespaceOnly=true \
-    --set cni.binPath=/var/lib/rancher/k3s/data/cni --set cni.confPath=/var/lib/rancher/k3s/agent/etc/cni/net.d
+    --set cni.binPath=/opt/cni/bin --set cni.confPath=/etc/cni/net.d "${CILIUM_CP[@]}"
+else
+  cilium upgrade --reuse-values "${CILIUM_CP[@]}" >/dev/null
 fi
 cilium status --wait --wait-duration 10m
 kubectl wait --for=condition=Ready nodes --all --timeout=300s
@@ -60,7 +66,7 @@ cat > "$STATE/prometheus-values.yaml" <<YAML
 alertmanager: {enabled: false}
 prometheus-pushgateway: {enabled: false}
 server:
-  global: {scrape_interval: 5s, evaluation_interval: 5s}
+  global: {scrape_interval: 5s, scrape_timeout: 4s, evaluation_interval: 5s}
   retention: 30d
   persistentVolume: {enabled: false}
   nodeSelector: {node-role.kubernetes.io/control-plane: "true"}
@@ -76,7 +82,28 @@ helm upgrade --install prometheus prometheus-community/prometheus -n monitoring 
   -f "$STATE/prometheus-values.yaml" --wait --timeout 10m >/dev/null
 record prometheus_chart "$(helm -n monitoring list -o json | jq -r '.[0].chart')"
 
+step "componentes do k3s no nó cp (coredns, metrics-server, local-path-provisioner)"
+# O k3s reaplica os próprios manifestos a cada partida (o revert do snapshot é uma partida): um arquivo .skip faz o
+# k3s deixar de gerenciá-los, e o nodeSelector aplicado aqui permanece.
+vssh cp 'sudo sh -c "cd /var/lib/rancher/k3s/server/manifests && for f in coredns.yaml local-storage.yaml metrics-server/*.yaml; do
+  touch \$f.skip; done"'
+for d in coredns metrics-server local-path-provisioner; do
+  kubectl -n kube-system patch deploy "$d" --type=merge -p '{"spec":{"template":{"spec":{
+    "nodeSelector":{"node-role.kubernetes.io/control-plane":"true"},
+    "tolerations":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"},
+                   {"key":"CriticalAddonsOnly","operator":"Exists"}]}}}}' >/dev/null
+  kubectl -n kube-system rollout status deploy "$d" --timeout=5m >/dev/null
+done
+
 kubectl get nodes -o wide
+kubectl get pods -A --field-selector spec.nodeName=cp -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name
+step "sem apt em segundo plano nas VMs"
+for vm in "${VMS[@]}"; do
+  vssh "$vm" 'sudo systemctl disable --now unattended-upgrades apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1'
+done
+record vm_kernel "$(vssh cp uname -r)"
+step "imagens de todas as configurações em todos os nós"
+"$MESH_DIR/02b-preload-images.sh"
 step "gravando snapshot base das VMs"
 snapshot_base
 step "cluster pronto. Prometheus: http://$CP_IP:30090"

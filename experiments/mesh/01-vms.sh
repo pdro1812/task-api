@@ -69,6 +69,8 @@ runcmd:
   - [sh, -c, "apt-get install -y linux-tools-\$(uname -r) || true"]
   - [sh, -c, "swapoff -a; sed -i '/ swap / s/^/#/' /etc/fstab"]
   - [sh, -c, "echo 'kernel.bpf_stats_enabled=1' > /etc/sysctl.d/90-mesh.conf; sysctl --system"]
+  # sem apt em segundo plano durante as medições (e o kernel não muda entre rodadas)
+  - [sh, -c, "systemctl disable --now unattended-upgrades apt-daily.timer apt-daily-upgrade.timer"]
 YAML
   cloud-localds "$POOL/$name-seed.iso" "$STATE/$vm-user-data"
   ncpu=$(echo "${VM_CPUS[$vm]}" | tr ',' '\n' | wc -l)
