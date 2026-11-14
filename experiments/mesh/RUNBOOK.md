@@ -98,8 +98,8 @@ fortio usa ~1,9 núcleo. O problema é que 14190 está bem no fio: o passo passo
 duas repetições deu 26 ms e depois colapsou (p99 de 1,6 s, VUs no máximo). Com 90% = 12771 req/s a bateria do echo
 fica perto do joelho.
 
-ANOTAR: decisão sobre `SAT_echo`: manter 14190, ou usar o passo anterior, 11352 (p99 de 7,7 ms, estável):
-`________`. Para mudar, editar `.state/saturacao.env`.
+**Decisão (14/11): `SAT_echo=11352`**, o passo estável anterior. Gravado em `.state/saturacao.env`; o original
+ficou em `.state/saturacao.env.piloto2`. Valores finais: **echo 11352, ob 1103, hotel 1853 req/s**.
 
 Para conferir:
 - `dropped_iterations` alto no passo em que o echo quebrou;
@@ -115,24 +115,28 @@ limitar a taxa do echo.
 - **Critério:** o SLO deve ficar perto do joelho da curva p99 × taxa da B. Exemplo: o ob tem p99 de ~17 ms a 566 req/s,
   então 500 ms é frouxo demais.
 - **Se mudar o SLO:** rodar de novo o piloto com `SLO_OB_MS=<novo> ./04-saturacao.sh` (~40 min).
-- ANOTAR: SLOs finais `echo=____ ob=____ hotel=____` e por quê: `________`
+- **SLOs finais (14/11): echo p99 ≤ 20 ms, ob ≤ 500 ms, hotel ≤ 100 ms**, mantidos. Mudá-los não muda as taxas da
+  bateria, que vêm da saturação já medida.
 - **Mandar ao Claude:** a decisão e o novo `saturacao.env`.
 
 ### 3. Reprodução do MeshInsight
 
 ```bash
-./07-meshinsight.sh                      # rascunho; B e IS, 5 rodadas cada no OB a 30% da saturação
+./07-meshinsight.sh /mnt/dados/resultados/meshinsight   # B e IS, 5 rodadas cada no OB a 90% da saturação da B
 ```
 
 - **Duração:** ~1 h.
 - **Sucesso:** `$RESULTS_ROOT/meshinsight/resumo.tsv` com o acréscimo percentual de p50, p99 e CPU do IS sobre a B.
-- ANOTAR: taxa e app do número publicado que vamos reproduzir (no topo do script) e o valor publicado: `________`
+- **Referência:** o MeshInsight (Istio 1.13, OB e Hotel) relata acréscimo de **27–269% na latência e 42–163% na CPU**,
+  conforme a configuração, em taxas perto do máximo. Critério: o nosso IS contra a B deve cair nessas faixas. Fora
+  delas, reportar e explicar (Istio 1.32, outro hardware, VMs).
+- ANOTAR: resultado `________`
 - **Mandar ao Claude:** o `resumo.tsv` e o valor publicado.
 
 ### 4. Bateria principal
 
 Escolha do destino: a bateria grava ~0,9 MB × (SAT_echo + SAT_ob + SAT_hotel). Com 14190 + 1103 + 1853, o
-`05-bateria.sh` projeta **14,7 GB** (12,4 GB se `SAT_echo=11352`). Ele recusa começar se a projeção passar de 80% do
+`05-bateria.sh` projeta **14,7 GB** (com o `SAT_echo=11352` adotado, **12,4 GB**). Ele recusa começar se a projeção passar de 80% do
 espaço livre do destino. Testado em 14/11: **recusa tanto `/mnt/dados` quanto `/`**, então é preciso um HD externo
 ou liberar espaço.
 
@@ -291,4 +295,6 @@ ANOTAR problemas novos:
 | Atualizações automáticas desligadas nas VMs | sem apt em segundo plano e sem troca de kernel durante a bateria | 13/11 |
 | Hotel registra serviços pelo nome DNS do Service | tráfego endereçado a Service em todos os meshes | 13/11 |
 | Sem `resources.limits` e sem `livenessProbe` nas aplicações | os limites de demo mediam estrangulamento e reinícios, não o mesh | 14/11 |
+| `SAT_echo=11352`, e não 14190 | 14190 está no joelho e colapsou numa repetição; o gargalo é o relay do fortio (~1,9 núcleo), não o k6 (núcleos E a ~53%) | 14/11 |
+| SLOs mantidos (20/500/100 ms) | as taxas vêm do piloto; o SLO só define o joelho | 14/11 |
 | 30/60/90% da saturação da B, 10 repetições, ordem aleatória com semente | mesma carga absoluta para todos os meshes; variância medida | 13/11 |

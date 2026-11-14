@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
-# Reprodução de um número do MeshInsight (Zhu et al., SoCC 2023): o acréscimo de latência e de CPU do Istio com
-# sidecar sobre a mesma aplicação sem mesh, a uma taxa fixa. Serve para situar o nosso testbed: se o acréscimo
-# medido aqui cair na mesma ordem de grandeza do publicado, os demais resultados são comparáveis.
+# STATUS: rascunho, primeiro uso em 14/11
+# Reprodução do MeshInsight (Zhu et al., SoCC 2023): acréscimo de latência e de CPU do Istio com sidecar sobre a
+# mesma aplicação sem mesh, numa taxa perto da saturação. O artigo (Istio 1.13 / Envoy 1.21, Online Boutique e Hotel)
+# não dá um número único: "request latency increases by 27-269% and CPU usage increases by 42-163%", conforme a
+# configuração (modo gRPC até +269% de latência e +163% de CPU; modo TCP até +61% e +92%), com taxas perto do máximo
+# que a máquina sustenta. Critério aqui: IS contra B no OB a 90% da saturação da B deve cair em 27-269% de latência e
+# 42-163% de CPU; fora disso, reportar e explicar (Istio mais novo, outro hardware, cluster virtualizado).
 # Uso: ./07-meshinsight.sh [diretório]   Variáveis: APP=ob  RATE=<req/s>  REPS=5
-# Saída: <diretório>/<cfg>-<rep>/ (mesmos arquivos de uma rodada da bateria) e <diretório>/resumo.tsv
+# Saída: <diretório>/<cfg>-<rep>/ (mesmos arquivos de uma rodada da bateria), rodadas.tsv e resumo.tsv
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
 APP=${APP:-ob}
-# ANOTAR: taxa e aplicação usadas no artigo do MeshInsight para o número que vamos comparar. Sem isso, usa 30% da
-# saturação da B (carga leve, longe do joelho, como num microbenchmark).
+# taxa perto da saturação da B, como no MeshInsight
 if [ -z "${RATE:-}" ]; then
   [ -f "$STATE/saturacao.env" ] || die "defina RATE ou rode antes o piloto"
-  source "$STATE/saturacao.env"; var="SAT_$APP"; RATE=$(( ${!var} * 30 / 100 ))
+  source "$STATE/saturacao.env"; var="SAT_$APP"; RATE=$(( ${!var} * 90 / 100 ))
 fi
 REPS=${REPS:-5}
 OUT=${1:-$RESULTS_ROOT/meshinsight}
@@ -45,9 +47,10 @@ import csv, statistics, sys
 rows = list(csv.DictReader(open(sys.argv[1]), delimiter="\t"))
 med = {c: {k: statistics.median(float(r[k]) for r in rows if r["config"] == c) for k in ("p50_ms", "p99_ms", "cpu_cores")}
        for c in ("B", "IS")}
-print("metrica\tB\tIS\tacrescimo_%")
+FAIXA = {"p50_ms": (27, 269), "p99_ms": (27, 269), "cpu_cores": (42, 163)}   # MeshInsight, SoCC 2023
+print("metrica\tB\tIS\tacrescimo_%\tfaixa_publicada_%\tdentro")
 for k in ("p50_ms", "p99_ms", "cpu_cores"):
-    print(f"{k}\t{med['B'][k]:.3f}\t{med['IS'][k]:.3f}\t{100 * (med['IS'][k] / med['B'][k] - 1):.1f}")
+    a = 100 * (med['IS'][k] / med['B'][k] - 1)
+    lo, hi = FAIXA[k]
+    print(f"{k}\t{med['B'][k]:.3f}\t{med['IS'][k]:.3f}\t{a:.1f}\t{lo}-{hi}\t{'sim' if lo <= a <= hi else 'NAO'}")
 PY
-# ANOTAR: valor publicado no MeshInsight para comparar (acréscimo de latência e de CPU do Istio sidecar na mesma
-# aplicação/taxa), com a figura ou tabela de onde saiu: latência ____ %, CPU ____ % (fonte: ____).

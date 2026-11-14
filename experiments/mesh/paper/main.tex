@@ -64,8 +64,10 @@ service mesh, Kubernetes, tail latency, performance evaluation, eBPF, energy eff
 \section{Related Work}
 % - MeshInsight~\cite{zhu2023meshinsight}: dissecação do custo de sidecars; diferenças: ambient/eBPF, malha aberta,
 %   energia, modelo preditivo.
-% - Comparações recentes de meshes e mTLS~\cite{bremlerbarr2024mtls,meshlib2026}; trabalhos de SoCC~2025
-%   \cite{cvetkovic2025socc}.
+% - Comparação de frameworks de mesh no custo do mTLS~\cite{bremlerbarr2024mtls}.
+% - Alternativas ao sidecar: Meshlib aplica a política dentro do processo, em meshes sem sidecar
+%   \cite{mostafaei2026meshlib} (RELER: não é estudo de medição); sidecar leve para serverless
+%   \cite{cvetkovic2025lightweight}. Ambos motivam medir desenhos sem sidecar lado a lado.
 % - Benchmarks de microsserviços~\cite{gan2019deathstarbench,onlineboutique}; medição de latência e coordinated
 %   omission~\cite{tene2015latency}; energia com RAPL~\cite{khan2018rapl}.
 % - Posicionar: primeira comparação lado a lado das três famílias com o mesmo protocolo, cauda e energia.
