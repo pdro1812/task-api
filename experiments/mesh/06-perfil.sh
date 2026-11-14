@@ -11,8 +11,6 @@
 #        k6-summary.json, meta.json}. Padrão: $RESULTS_ROOT/perfil.
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
-[ -f "$STATE/saturacao.env" ] || die "rode antes o piloto (04-saturacao.sh)"
-source "$STATE/saturacao.env"
 CONFIGS=${CONFIGS:-"B IS IA4 IA7 LK CI"}
 APPS=${APPS:-"echo ob"}
 LOAD=${LOAD:-60}
@@ -51,7 +49,7 @@ for cfg in $CONFIGS; do
   "$MESH_DIR/03-config.sh" "$cfg" > "$OUT/$cfg-config.log" 2>&1 || die "03-config.sh $cfg falhou"
   for app in $APPS; do
     d="$OUT/$cfg/$app"; mkdir -p "$d"
-    var="SAT_$app"; rate=$(( ${!var} * LOAD / 100 ))
+    base=$(sat_min "$app" B IS IA4 IA7 LK CI) || exit 1; rate=$(( base * LOAD / 100 ))   # a mesma base da bateria
     step "[$cfg] $app a $rate req/s ($LOAD%)"
     k6_run "$app" "$rate" "$WARMUP" >/dev/null 2>&1 || true
     # a carga dura o perfil inteiro mais uma folga; o k6 roda nos núcleos E

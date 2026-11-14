@@ -64,3 +64,21 @@ k6_stats() {
           [$m.http_req_duration.values["p(99)"], ($m.http_req_failed.values.rate // 0),
            ($d / (($m.iterations.values.count // 0) + $d + 0.000001))] | @tsv' "$1"
 }
+
+# Saturação por configuração (04-saturacao.sh grava SAT_<app>_<cfg> em $STATE/saturacao.env).
+# sat_de <app> <cfg>: a taxa da configuração; sat_min <app> <cfgs...>: a menor entre as configurações, que é a base
+# das cargas da bateria (todas sustentam todos os níveis). Morre se faltar alguma.
+sat_de() {
+  local v
+  v=$(sed -n "s/^SAT_$1_$2=//p" "$STATE/saturacao.env" 2>/dev/null | tail -1)
+  [ -n "$v" ] && [ "$v" -gt 0 ] || die "falta SAT_$1_$2 em $STATE/saturacao.env: rode ./04-saturacao.sh na $2"
+  echo "$v"
+}
+sat_min() {
+  local app=$1 cfg min="" v; shift
+  for cfg in "$@"; do
+    v=$(sat_de "$app" "$cfg") || exit 1
+    { [ -z "$min" ] || [ "$v" -lt "$min" ]; } && min=$v
+  done
+  echo "$min"
+}

@@ -29,8 +29,9 @@ Convenções:
 | ✅ | Piloto de saturação na B (2ª tentativa): echo 14190, ob 1103, hotel 1853 req/s | 14/11 |
 | ✅ | Checado: o k6 não é o gargalo no echo (núcleos E a ~53%); o joelho é do cluster (relay do fortio) | 14/11 |
 | ✅ | Scripts de análise testados com dados sintéticos (`analysis/gera_sintetico.py`) | 14/11 |
-| ⬜ | Ajuste dos SLOs | |
-| ⬜ | Reprodução do MeshInsight (`07-meshinsight.sh`) | |
+| ✅ | SLOs mantidos (20/500/100 ms); `SAT_echo_B=11352` | 14/11 |
+| ⏳ | MeshInsight: a 992 req/s o IS colapsa (vazão máx. do IS no OB ≈ 760, −31%); refazendo a 551 req/s | 14/11 |
+| ⬜ | Saturação nas 6 configurações (`CONFIGS=... ./04-saturacao.sh`) | |
 | ⬜ | Bateria principal (`05-bateria.sh`), 540 rodadas | |
 | ⬜ | Perfil RQ2 (`06-perfil.sh`) | |
 | ⬜ | Análise, figuras e modelo (`analysis/`) | |
@@ -133,10 +134,32 @@ limitar a taxa do echo.
 - ANOTAR: resultado `________`
 - **Mandar ao Claude:** o `resumo.tsv` e o valor publicado.
 
+### 3b. Saturação em cada configuração
+
+Mudança de desenho (14/11): a vazão máxima dentro do SLO passa a ser medida em todas as configurações, e é métrica
+do RQ1 por si só. A bateria usa 30/60/90% da **menor** saturação de cada app entre as 6 configurações.
+
+```bash
+CONFIGS="IS IA4 IA7 LK CI" ./04-saturacao.sh      # a B já está medida; cada config parte de 30% da saturação da B
+```
+
+- **Duração:** ~30–40 min por configuração (preparação mais ~7 passos por app), cerca de **3 h** no total.
+- **O que grava:** `SAT_<app>_<cfg>` em `.state/saturacao.env` e o log `.state/saturacao-<cfg>-<data>.tsv`. A última
+  taxa aprovada é confirmada com mais um passo; se falhar, recua um passo.
+- **Sucesso:** 18 valores `SAT_*_*` (6 configurações × 3 apps), todos > 0.
+- **Mandar ao Claude:** o `grep ^SAT_ .state/saturacao.env`.
+
+| App | B | IS | IA4 | IA7 | LK | CI | **mín. (base da bateria)** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| echo | 11352 | ANOTAR | | | | | |
+| ob | 1103 | (~760) | | | | | |
+| hotel | 1853 | | | | | | |
+
 ### 4. Bateria principal
 
-Escolha do destino: a bateria grava ~0,9 MB × (SAT_echo + SAT_ob + SAT_hotel). Com 14190 + 1103 + 1853, o
-`05-bateria.sh` projeta **14,7 GB** (com o `SAT_echo=11352` adotado, **12,4 GB**). Ele recusa começar se a projeção passar de 80% do
+Escolha do destino: a bateria grava ~0,9 MB × (soma das bases das 3 apps), e cada base é a menor saturação entre
+as configurações. A projeção cai em relação aos 12,4 GB calculados só com a B; o `05-bateria.sh` mostra o valor ao
+começar (ANOTAR: `________`). Ele recusa começar se a projeção passar de 80% do
 espaço livre do destino. Testado em 14/11: **recusa tanto `/mnt/dados` quanto `/`**, então é preciso um HD externo
 ou liberar espaço.
 
@@ -231,8 +254,8 @@ Checklist final no [SUBMISSAO.md](SUBMISSAO.md).
 
 | Data | Dia | Plano |
 | --- | --- | --- |
-| 14/11 | sáb | Piloto de saturação; checar se o k6 é o gargalo; ajustar SLOs |
-| 15/11 | dom | MeshInsight (B vs IS, ~1 h); ambiente Python da análise; testar `06-perfil.sh` numa configuração |
+| 14/11 | sáb | Piloto na B; k6 checado; SLOs; MeshInsight; saturação nas outras 5 configurações (~3 h) |
+| 15/11 | dom | Testar `06-perfil.sh` numa configuração; montar o HD dos resultados |
 | 16/11 | seg | Escrever Background, Related Work e Methodology; conferir o `refs.bib` |
 | 17/11 | ter | Folga para correções; começar a bateria à noite, se estiver tudo pronto |
 | 18/11 | qua | **Bateria** |
@@ -297,4 +320,7 @@ ANOTAR problemas novos:
 | Sem `resources.limits` e sem `livenessProbe` nas aplicações | os limites de demo mediam estrangulamento e reinícios, não o mesh | 14/11 |
 | `SAT_echo=11352`, e não 14190 | 14190 está no joelho e colapsou numa repetição; o gargalo é o relay do fortio (~1,9 núcleo), não o k6 (núcleos E a ~53%) | 14/11 |
 | SLOs mantidos (20/500/100 ms) | as taxas vêm do piloto; o SLO só define o joelho | 14/11 |
+| Saturação medida em cada configuração (`SAT_<app>_<cfg>`) | a vazão máxima por mesh é métrica do RQ1 (IS no OB: ≈ 760 contra 1103 da B, −31%) | 14/11 |
+| Cargas da bateria = 30/60/90% da **menor** saturação entre as 6 configurações | mesma taxa absoluta para todas, e todas sustentam todos os níveis: a cauda mede o custo do mesh, não colapso por fila (a 90% da B o IS no OB colapsava, p50 de 1,8 s) | 14/11 |
+| MeshInsight a 90% da menor saturação entre B e IS | a 90% da B o IS não sustenta a carga, e a comparação percentual perde o sentido | 14/11 |
 | 30/60/90% da saturação da B, 10 repetições, ordem aleatória com semente | mesma carga absoluta para todos os meshes; variância medida | 13/11 |

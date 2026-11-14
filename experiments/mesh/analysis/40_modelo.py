@@ -11,6 +11,10 @@ H = R_app * h_cfg + e_cfg: saltos por requisição (R_app chamadas RPC por requi
 configuração, e_cfg saltos na entrada). Parâmetros por configuração: s e u. Ajustados no echo e no Online Boutique
 (mínimos quadrados sobre as medianas por carga) e usados para PREVER o Hotel Reservation, que não entra no ajuste.
 
+As cargas da bateria são % da MENOR saturação entre as configurações (mesma taxa absoluta para todas); o modelo usa
+a taxa obtida (rps) de cada rodada, não a porcentagem, então não depende dessa escolha. Ver também a vazão máxima por
+configuração (04-saturacao.sh): o termo 1/(1-rho) diverge perto dela, o que permite checar u contra SAT_<app>_<cfg>.
+
 Uso: python 40_modelo.py <cells.csv> [--saltos saltos.json] [--saida ../paper/tables/modelo.tex]
 Saída: tabela com s, u e o erro de previsão (média e p99) no Hotel, por configuração.
 """

@@ -4,7 +4,8 @@
 # mesma aplicação sem mesh, numa taxa perto da saturação. O artigo (Istio 1.13 / Envoy 1.21, Online Boutique e Hotel)
 # não dá um número único: "request latency increases by 27-269% and CPU usage increases by 42-163%", conforme a
 # configuração (modo gRPC até +269% de latência e +163% de CPU; modo TCP até +61% e +92%), com taxas perto do máximo
-# que a máquina sustenta. Critério aqui: IS contra B no OB a 90% da saturação da B deve cair em 27-269% de latência e
+# que a máquina sustenta. Critério aqui: IS contra B no OB a 90% da menor saturação entre B e IS (que as duas
+# sustentam; a 90% da B o IS colapsa) deve cair em 27-269% de latência e
 # 42-163% de CPU; fora disso, reportar e explicar (Istio mais novo, outro hardware, cluster virtualizado).
 # Uso: ./07-meshinsight.sh [diretório]   Variáveis: APP=ob  RATE=<req/s>  REPS=5
 # Saída: <diretório>/<cfg>-<rep>/ (mesmos arquivos de uma rodada da bateria), rodadas.tsv e resumo.tsv
@@ -13,8 +14,7 @@ source "$MESH_DIR/lib/measure.sh"
 APP=${APP:-ob}
 # taxa perto da saturação da B, como no MeshInsight
 if [ -z "${RATE:-}" ]; then
-  [ -f "$STATE/saturacao.env" ] || die "defina RATE ou rode antes o piloto"
-  source "$STATE/saturacao.env"; var="SAT_$APP"; RATE=$(( ${!var} * 90 / 100 ))
+  base=$(sat_min "$APP" B IS) || exit 1; RATE=$(( base * 90 / 100 ))   # 90% da menor entre B e IS: as duas sustentam
 fi
 REPS=${REPS:-5}
 OUT=${1:-$RESULTS_ROOT/meshinsight}

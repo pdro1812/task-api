@@ -50,16 +50,18 @@ Para usar o cluster direto: `export KUBECONFIG=$PWD/.state/kubeconfig`. Promethe
 ## Piloto e bateria
 
 ```bash
-./03-config.sh B && ./04-saturacao.sh     # maior taxa dentro do SLO sem mesh -> .state/saturacao.env
-./05-bateria.sh                           # todas as configurações, 30/60/90% da saturação, 10 rodadas
-CONFIGS="B IS" ./05-bateria.sh <dir>      # só algumas configurações; o mesmo <dir> retoma de onde parou
+./03-config.sh B && ./04-saturacao.sh            # vazão máxima dentro do SLO na B -> SAT_<app>_B
+CONFIGS="IS IA4 IA7 LK CI" ./04-saturacao.sh     # o mesmo em cada mesh -> SAT_<app>_<cfg>
+./05-bateria.sh <dir>                            # todas as configurações, 30/60/90% da menor saturação, 10 rodadas
+CONFIGS="B IS" ./05-bateria.sh <dir>             # só algumas configurações; o mesmo <dir> retoma de onde parou
 ```
 
-Os SLOs do piloto (`SLO_ECHO_MS=20`, `SLO_OB_MS=500`, `SLO_HOTEL_MS=100`) e as taxas iniciais são provisórios:
-ajuste depois de olhar a primeira saída. Cada rodada é 1 min de aquecimento + 3 min de medição; a bateria completa
-leva cerca de 40 h. Resultados em `experiments/results/mesh/bateria-*/<config>/<app>-<carga>-<rodada>/`:
-`k6-summary.json`, `k6-reqs.csv.gz` (cada requisição), `prom-*.json` (CPU e memória por contêiner, CPU por nó),
-`meta.json` (energia RAPL em joules) e, por configuração, `idle.json` (potência ociosa) e `pods.txt`.
+Os SLOs (`SLO_ECHO_MS=20`, `SLO_OB_MS=500`, `SLO_HOTEL_MS=100`) definem a saturação. A vazão máxima de cada
+configuração é resultado (RQ1); a base das cargas da bateria é a **menor** saturação de cada app entre as 6
+configurações, para que todas sustentem todos os níveis. Cada rodada é 1 min de aquecimento + 3 min de medição.
+Resultados em `<dir>/<config>/<app>-<carga>-<rodada>/`: `k6-summary.json`, `k6-reqs.csv.gz` (cada requisição),
+`prom-*.json` (CPU e memória por contêiner, CPU por nó), `meta.json` (energia RAPL em joules) e, por configuração,
+`idle.json` (potência ociosa) e `pods.txt`. O passo a passo completo está no [RUNBOOK.md](RUNBOOK.md).
 
 ## Decisões de desenho
 
@@ -79,6 +81,9 @@ leva cerca de 40 h. Resultados em `experiments/results/mesh/bateria-*/<config>/<
 - As aplicações rodam sem `resources.limits` e sem `livenessProbe` (requests e readiness ficam). Com os limites de
   demonstração do Online Boutique (200m de CPU por serviço), o piloto já falhava a 50 req/s: CPU estrangulada,
   liveness matando o recommendationservice e cascata de timeouts. Sem eles, p99 de 10 a 20 ms até 800 req/s.
+- Saturação medida em cada configuração; cargas da bateria a 30/60/90% da menor delas por app. Com a carga relativa
+  à B, o Istio sidecar colapsava no Online Boutique a 90% (vazão máxima ≈ 760 contra 1103 req/s da B), e a cauda
+  mediria fila, não o custo do mesh.
 - Hotel Reservation: os serviços se registram no Consul com o nome DNS do Service (`<Serviço>IP` no `config.json`,
   por ConfigMap), não com o IP do pod. Assim o tráfego gRPC é endereçado ao Service em todos os meshes.
 - Linkerd com `all-authenticated`: os probes gRPC do kubelet (Online Boutique) chegam sem mTLS; só a rota

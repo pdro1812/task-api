@@ -2,12 +2,15 @@
 # STATUS: rascunho, testado só com dados sintéticos
 """Figuras do artigo, em PDF, largura de coluna IEEE (3,5 pol.) e legíveis em escala de cinza.
 
-Uso: python 30_figuras.py <diretório da bateria> [--perfil <diretório do 06-perfil.sh>] [--saida ../paper/figs]
+Uso: python 30_figuras.py <diretório da bateria> [--perfil <diretório do 06-perfil.sh>]
+                          [--saturacao <saturacao.env>] [--saida ../paper/figs]
 
 Usa <bateria>/cells.csv (10_agregar.py) e, para as CDFs, <bateria>/cdf/ (10_agregar.py --cdf).
 Figuras:
   cdf_<app>.pdf        CDF da latência a 60% da carga, uma curva por configuração (repetições juntas)
-  p99_carga.pdf        p99 (mediana das repetições) por carga, um painel por app
+  p99_carga.pdf        p99 (mediana das repetições) por carga, um painel por app; a carga é % da MENOR saturação
+                       entre as configurações (mesma taxa absoluta para todas)
+  vazao.pdf            (com --saturacao) vazão máxima dentro do SLO por configuração e app, relativa à B
   recursos.pdf         mCPU e MiB por 1000 req/s, empilhados por componente, a 60% da carga
   energia.pdf          J por requisição (líquido da potência ociosa), por configuração e app
   perfil.pdf           (com --perfil) fração das amostras de CPU por categoria de função, por configuração
@@ -181,10 +184,36 @@ def fig_perfil(perfil, saida, app="echo"):
     salva(fig, saida, "perfil.pdf")
 
 
+def fig_vazao(arquivo, saida):
+    """Barras: SAT_<app>_<cfg> / SAT_<app>_B, um grupo por app (04-saturacao.sh)."""
+    sat = {}
+    for linha in open(arquivo):
+        nome, _, v = linha.strip().partition("=")
+        partes = nome.split("_")
+        if len(partes) == 3 and partes[0] == "SAT" and v.isdigit():
+            sat[(partes[1], partes[2])] = int(v)
+    apps = [a for a in ("echo", "ob", "hotel") if (a, "B") in sat]
+    if not apps:
+        return
+    fig, ax = plt.subplots(figsize=(LARGURA, 1.9))
+    largura = 0.13
+    for k, cfg in enumerate(ORDEM):
+        vals = [sat.get((a, cfg), np.nan) / sat[(a, "B")] for a in apps]
+        ax.bar(np.arange(len(apps)) + (k - 2.5) * largura, vals, largura, color="white", edgecolor="black",
+               hatch=HACHURAS[k], linewidth=0.4, label=cfg)
+    ax.axhline(1.0, color="0.5", linewidth=0.5)
+    ax.set_xticks(range(len(apps)))
+    ax.set_xticklabels([f"{a}\n(B: {sat[(a, 'B')]} req/s)" for a in apps])
+    ax.set_ylabel("max. throughput\n(relative to B)")
+    ax.legend(ncol=6, fontsize=5.5, loc="upper center", bbox_to_anchor=(0.5, 1.25))
+    salva(fig, saida, "vazao.pdf")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("bateria")
     ap.add_argument("--perfil")
+    ap.add_argument("--saturacao", help="saturacao.env do 04-saturacao.sh (SAT_<app>_<cfg>)")
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "..", "paper", "figs"))
     a = ap.parse_args()
     os.makedirs(a.saida, exist_ok=True)
@@ -196,6 +225,8 @@ def main():
     fig_energia(df, a.saida)
     if a.perfil:
         fig_perfil(a.perfil, a.saida)
+    if a.saturacao:
+        fig_vazao(a.saturacao, a.saida)
 
 
 if __name__ == "__main__":

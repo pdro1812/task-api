@@ -5,12 +5,17 @@
 # Uso: ./05-bateria.sh [diretório]   Variáveis: CONFIGS="B IS IA4 IA7 LK CI"  REPS=10  LOADS="30 60 90"  APPS="echo ob hotel"
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
-[ -f "$STATE/saturacao.env" ] || die "rode antes o piloto: ./03-config.sh B && ./04-saturacao.sh"
-source "$STATE/saturacao.env"
 CONFIGS=${CONFIGS:-"B IS IA4 IA7 LK CI"}
 REPS=${REPS:-10}
 LOADS=${LOADS:-"30 60 90"}
 APPS=${APPS:-"echo ob hotel"}
+# Base das cargas: a menor saturação da app entre as 6 configurações (mesma taxa absoluta para todas, e todas a
+# sustentam). Sempre sobre as 6, mesmo rodando só algumas, para que as taxas não mudem entre sessões.
+for app in $APPS; do
+  v=$(sat_min "$app" B IS IA4 IA7 LK CI) || exit 1
+  printf -v "SAT_$app" '%s' "$v"
+  var="SAT_$app"; echo "$app: base das cargas ${!var} req/s (menor saturação entre as configurações)"
+done
 DIR=${1:-$RESULTS_ROOT/bateria-$(date +%Y%m%d-%H%M)}
 mkdir -p "$DIR"
 
