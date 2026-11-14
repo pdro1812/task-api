@@ -76,6 +76,9 @@ leva cerca de 40 h. Resultados em `experiments/results/mesh/bateria-*/<config>/<
   rodam em todos os nós.
 - As imagens de todas as configurações estão no snapshot base (`02b-preload-images.sh`, lista e digests em
   `.state/imagens.txt`) e os manifestos usam `imagePullPolicy: IfNotPresent`: nenhuma rodada baixa imagens.
+- As aplicações rodam sem `resources.limits` e sem `livenessProbe` (requests e readiness ficam). Com os limites de
+  demonstração do Online Boutique (200m de CPU por serviço), o piloto já falhava a 50 req/s: CPU estrangulada,
+  liveness matando o recommendationservice e cascata de timeouts. Sem eles, p99 de 10 a 20 ms até 800 req/s.
 - Hotel Reservation: os serviços se registram no Consul com o nome DNS do Service (`<Serviço>IP` no `config.json`,
   por ConfigMap), não com o IP do pod. Assim o tráfego gRPC é endereçado ao Service em todos os meshes.
 - Linkerd com `all-authenticated`: os probes gRPC do kubelet (Online Boutique) chegam sem mTLS; só a rota

@@ -1,0 +1,131 @@
+% Artigo para o CCGrid 2027, Track 5 (Performance Modeling, Analysis, and Optimization).
+% Limite: 10 páginas IEEE com referências; revisão duplo-cega (sem nomes, sem links do repositório).
+% Compilar: make   (latexmk -pdf). Marcas \todo{} mostram o que falta preencher; \todos desliga no final.
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{url}
+% Para a submissão final: trocar para \usepackage[disable]{todonotes}
+\usepackage[colorinlistoftodos,textsize=tiny]{todonotes}
+\newcommand{\anonrepo}{\url{https://anonymous.4open.science/r/XXXX}\todo{ANOTAR: link anônimo do artefato}}
+\graphicspath{{figs/}}
+
+\begin{document}
+
+\title{Sidecars, Ambient, or eBPF? Measuring the Tail-Latency and Resource Cost of Kubernetes Service Meshes}
+
+% Duplo-cego: nada de nomes, afiliações ou e-mails
+\author{\IEEEauthorblockN{Anonymous Author(s)}
+\IEEEauthorblockA{Anonymous Institution}}
+
+\maketitle
+
+\begin{abstract}
+Service meshes add mutual TLS, telemetry, and traffic policy to microservices, but each data-plane design pays for
+them differently: a proxy per pod (sidecar), a per-node L4 proxy with optional shared L7 waypoints (ambient), or
+in-kernel eBPF with a per-node proxy. We measure six configurations---no mesh, Istio sidecar, Istio ambient with and
+without waypoints, Linkerd, and Cilium with WireGuard and L7 policy---on a pinned, virtualized Kubernetes testbed with
+open-loop load at 30, 60, and 90\% of the no-mesh saturation point, using a synthetic echo service, Online Boutique,
+and DeathStarBench Hotel Reservation. At 60\% load, the sidecar mesh adds \todo{[X]~ms} to p99 latency, while
+ambient L4 adds \todo{[Y]~ms}; per 1000~req/s the extra CPU ranges from \todo{[Z]} to \todo{[Z']} millicores, and
+energy per request grows by up to \todo{[E]\%}. Profiling attributes the overhead to \todo{TLS, HTTP parsing, and
+kernel networking shares}. A compositional model built from per-hop proxy cost and a queueing term, fitted on two
+applications, predicts the third application's mean and p99 overhead within \todo{[W]\%}. We distill the results into
+a decision guide for choosing a data plane.
+\end{abstract}
+
+\begin{IEEEkeywords}
+service mesh, Kubernetes, tail latency, performance evaluation, eBPF, energy efficiency
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------------------------------------------------------
+\section{Introduction}
+% - Contexto: service meshes viraram padrão (mTLS, observabilidade, política); custo é o principal argumento contra.
+% - Novidade: três desenhos de plano de dados convivem (sidecar, ambient L4/L7, eBPF + proxy por nó) e as medições
+%   publicadas cobrem um de cada vez, em hardware/cargas diferentes, muitas vezes em malha fechada.
+% - Perguntas: RQ1 quanto custa cada um em latência de cauda, CPU, memória e energia; RQ2 de onde vem o custo;
+%   RQ3 dá para prever o custo numa aplicação nova a partir de medidas simples; RQ4 qual escolher quando.
+% - Contribuições (lista): testbed reproduzível e artefato anônimo; medição em malha aberta das 6 configurações em 3
+%   aplicações; atribuição do custo por perfil; modelo composicional validado; guia de decisão.
+\todo[inline]{Escrever (0,75 pág.)}
+
+\section{Background}
+% - Plano de dados com sidecar (Envoy por pod no Istio; linkerd2-proxy no Linkerd): 2 proxies por chamada.
+% - Istio ambient: ztunnel por nó (L4, HBONE/mTLS) e waypoint opcional por namespace (L7).
+% - Cilium: datapath eBPF, criptografia WireGuard entre nós, L7 desviado ao Envoy do nó por política.
+% - Figura opcional: caminho de uma requisição em cada desenho (saltos de proxy).
+\todo[inline]{Escrever (0,75 pág.); figura do caminho dos pacotes}
+
+\section{Related Work}
+% - MeshInsight~\cite{zhu2023meshinsight}: dissecação do custo de sidecars; diferenças: ambient/eBPF, malha aberta,
+%   energia, modelo preditivo.
+% - Comparações recentes de meshes e mTLS~\cite{bremlerbarr2024mtls,meshlib2026}; trabalhos de SoCC~2025
+%   \cite{cvetkovic2025socc}.
+% - Benchmarks de microsserviços~\cite{gan2019deathstarbench,onlineboutique}; medição de latência e coordinated
+%   omission~\cite{tene2015latency}; energia com RAPL~\cite{khan2018rapl}.
+% - Posicionar: primeira comparação lado a lado das três famílias com o mesmo protocolo, cauda e energia.
+\todo[inline]{Escrever (0,75 pág.); conferir o que cada referência mede de fato}
+
+\section{Methodology and Testbed}
+% - Hardware e virtualização: i7-12700K, 4 VMs KVM, vCPUs fixadas em núcleos P, QEMU no par 0, k6 nos núcleos E;
+%   governor performance, sem turbo, sem C-states profundos.
+% - Software: k3s, Cilium como CNI em todas as configurações; versões (tabela); planos de controle no nó de controle;
+%   imagens pré-carregadas; snapshot restaurado antes de cada configuração.
+% - Cargas: echo (fortio, um salto interno), Online Boutique, Hotel Reservation; saturação na B por SLO de p99;
+%   30/60/90\%; malha aberta (constant-arrival-rate) para evitar coordinated omission.
+% - Métricas: latência por requisição (k6), CPU/memória por contêiner (Prometheus, 5~s), energia (RAPL, líquida da
+%   potência ociosa); 10 repetições em ordem aleatória; estatística (bootstrap, Mann-Whitney com Holm, Cliff).
+% - Decisões que afetam a comparação: sem limites de CPU nas aplicações, mTLS estrito, entrada em texto puro.
+\todo[inline]{Escrever (1,25 pág.); tabela de versões a partir de .state/versoes-instaladas.txt}
+
+\section{Results: Cost of Each Data Plane (RQ1)}
+% - Latência: CDF a 60\% (Fig.~\ref{fig:cdf}) e p99 por carga (Fig.~\ref{fig:p99}); tabela de medianas com IC.
+% - Recursos: mCPU e MiB por 1000~req/s por componente (Fig.~\ref{fig:recursos}).
+% - Energia por requisição (Fig.~\ref{fig:energia}).
+% - Destaques numéricos e onde as configurações se invertem (ex.: waypoint vs sidecar na cauda).
+\todo[inline]{Escrever (2 pág.) com os números de analysis/20\_estatistica.py}
+% \begin{figure}[t]\centering\includegraphics[width=\columnwidth]{cdf_ob}\caption{...}\label{fig:cdf}\end{figure}
+% \begin{figure}[t]\centering\includegraphics[width=\columnwidth]{p99_carga}\caption{...}\label{fig:p99}\end{figure}
+% \begin{figure}[t]\centering\includegraphics[width=\columnwidth]{recursos}\caption{...}\label{fig:recursos}\end{figure}
+% \begin{figure}[t]\centering\includegraphics[width=\columnwidth]{energia}\caption{...}\label{fig:energia}\end{figure}
+% \begin{table}[t]\centering\caption{p99 latency (ms)}\input{tables/p99_ms}\end{table}
+
+\section{Overhead Attribution (RQ2)}
+% - Perfil (perf + bpftrace) nos nós de trabalho a 60\%: fração de CPU por categoria (TLS, HTTP, kernel, eBPF).
+% - Trocas de contexto e syscalls por requisição; softirq; custo dos programas eBPF (bpf\_stats) na CI.
+% - Relacionar com o número de saltos de proxy de cada desenho.
+\todo[inline]{Escrever (1 pág.) com os resultados do 06-perfil.sh}
+% \begin{figure}[t]\centering\includegraphics[width=\columnwidth]{perfil}\caption{...}\label{fig:perfil}\end{figure}
+
+\section{A Compositional Overhead Model (RQ3)}
+% - Modelo: acréscimo = saltos × custo por salto / (1 - utilização), cauda via termo M/M/1.
+% - Ajuste no echo e no Online Boutique; previsão do Hotel; erro de média e p99 (tabela).
+% - Limites do modelo (efeitos de fila na aplicação, saltos no mesmo nó).
+\todo[inline]{Escrever (1 pág.) com analysis/40\_modelo.py}
+% \begin{table}[t]\centering\caption{Model parameters and prediction error}\input{tables/modelo}\end{table}
+
+\section{Decision Guide (RQ4)}
+% - Tabela: requisito (mTLS só L4, política L7, menor cauda, menor CPU, menor memória) -> configuração recomendada.
+% - Regras práticas derivadas dos resultados e do modelo (ex.: a partir de quantos saltos o sidecar perde).
+\todo[inline]{Escrever (0,5 pág.)}
+
+\section{Threats to Validity}
+% - Testbed virtualizado numa máquina só (rede virtual, sem NIC física); um tamanho de cluster.
+% - Versões específicas; configurações padrão de cada mesh (sem tuning); aplicações de benchmark.
+% - Energia do pacote inteiro (RAPL), inclui QEMU e o gerador de carga; descontada a potência ociosa.
+% - Variabilidade: repetições, ordem aleatória, CV do p99 reportado.
+\todo[inline]{Escrever (0,5 pág.)}
+
+\section{Conclusion}
+% - Resumo das respostas às RQs em 3--4 frases; artefato disponível em \anonrepo.
+\todo[inline]{Escrever (0,25 pág.)}
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

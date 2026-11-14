@@ -1,0 +1,1 @@
+Figuras geradas por ../analysis/30_figuras.py (PDF).

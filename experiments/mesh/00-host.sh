@@ -56,5 +56,5 @@ grep -H . /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor /sys/devices/sys
   echo "# $(date -Is)"
   echo "kernel=$(uname -r)"
   echo "cpu=$(lscpu | sed -n 's/^Model name: *//p')"
-} > "$STATE/versoes-instaladas.txt"
+} >> "$STATE/versoes-instaladas.txt"   # acrescenta: as versões do cluster já estão no arquivo
 step "host pronto"

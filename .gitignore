@@ -1,3 +1,5 @@
 node_modules/
 experiments/results/
 experiments/mesh/.state
+experiments/mesh/analysis/.venv
+__pycache__/

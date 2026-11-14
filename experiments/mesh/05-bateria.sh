@@ -13,6 +13,18 @@ LOADS=${LOADS:-"30 60 90"}
 APPS=${APPS:-"echo ob hotel"}
 DIR=${1:-$RESULTS_ROOT/bateria-$(date +%Y%m%d-%H%M)}
 mkdir -p "$DIR"
+
+# Espaço: o k6-reqs.csv.gz domina (medido: 36-51 B por requisição, ~8 KB por req/s numa rodada de 180 s).
+# Recusa começar se a projeção das rodadas pendentes passar de 80% do espaço livre no destino.
+KB_POR_RPS=${KB_POR_RPS:-8}
+proj_kb=0
+for cfg in $CONFIGS; do for app in $APPS; do for load in $LOADS; do for rep in $(seq 1 "$REPS"); do
+  [ -f "$DIR/$cfg/$app-$load-$rep/meta.json" ] && continue
+  var="SAT_$app"; proj_kb=$(( proj_kb + ${!var} * load / 100 * KB_POR_RPS * ${DURATION%s} / 180 + 500 ))
+done; done; done; done
+livre_kb=$(df -Pk "$DIR" | awk 'NR == 2 {print $4}')
+echo "projeção de disco: $((proj_kb / 1024)) MB para as rodadas pendentes; livre em $DIR: $((livre_kb / 1024)) MB"
+[ "$proj_kb" -le $(( livre_kb * 8 / 10 )) ] || die "a bateria passaria de 80% do espaço livre em $DIR: escolha outro destino"
 [ -f "$DIR/seed" ] || echo $RANDOM > "$DIR/seed"
 SEED=$(cat "$DIR/seed")
 cp "$STATE/versoes-instaladas.txt" "$STATE/saturacao.env" "$DIR/" 2>/dev/null || true

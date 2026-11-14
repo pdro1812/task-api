@@ -23,6 +23,9 @@ fetch_sources() {
 # recriaria o pod, e o Consul do Hotel perderia os registros, que ficam só em memória):
 #   - cada deployment fixado num nó de trabalho, em rodízio pela ordem alfabética dos nomes;
 #   - imagePullPolicy IfNotPresent em todos os contêineres: as imagens já estão no snapshot base (02b-preload-images.sh);
+#   - sem limits de CPU/memória nem livenessProbe: os valores de demonstração dos manifestos (200m de CPU por serviço
+#     no Online Boutique) estrangulam as aplicações, e o liveness reinicia o pod sobrecarregado, o que vira cascata de
+#     timeouts; a saturação passaria a medir esses artefatos, não o cluster (requests e readiness ficam);
 #   - o filtro jq opcional $2 faz os ajustes próprios de cada aplicação (antes do rodízio).
 apply_pinned() {
   local ns=$1 extra=${2:-.}
@@ -34,6 +37,7 @@ apply_pinned() {
                 .metadata.name as $n
                 | .spec.template.spec.nodeSelector = {"kubernetes.io/hostname": (["w1", "w2", "w3"][($deps | index($n)) % 3])}
                 | .spec.template.spec.containers[].imagePullPolicy = "IfNotPresent"
+                | del(.spec.template.spec.containers[].resources.limits, .spec.template.spec.containers[].livenessProbe)
                 | if .spec.template.spec.initContainers then .spec.template.spec.initContainers[].imagePullPolicy = "IfNotPresent" else . end
               else . end)' \
     | kubectl -n "$ns" apply -f - >/dev/null
