@@ -50,6 +50,12 @@ for cfg in $(echo "$CONFIGS" | tr ' ' '\n' | shuffle cfg); do
   while read -r app load rep; do
     i=$((i + 1))
     var="SAT_$app"; rate=$(( ${!var} * load / 100 ))
+    # os qcow2 das VMs crescem a cada configuração: pausa (retomável) se o disco do estado ou dos resultados apertar
+    for d in "$STATE" "$DIR"; do
+      livre=$(df -Pk "$d" | awk 'NR == 2 {print $4}')
+      [ "$livre" -ge $(( ${MIN_LIVRE_GB:-3} * 1024 * 1024 )) ] || \
+        die "menos de ${MIN_LIVRE_GB:-3} GB livres em $d: bateria pausada; libere espaço e rode de novo com o mesmo diretório"
+    done
     echo "[$(date +%H:%M)] $cfg $i/${#cells[@]}: $app carga $load% ($rate req/s) rodada $rep"
     run_cell "$cfg" "$app" "$load" "$rate" "$rep" "$DIR/$cfg/$app-$load-$rep"
   done < <(printf '%s\n' "${cells[@]}" | shuffle "$cfg")

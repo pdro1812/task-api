@@ -7,7 +7,9 @@
 #      CONFIGS="IS IA4 IA7 LK CI" ./04-saturacao.sh      em várias, uma depois da outra
 # Critério: p99 <= SLO, erros <= 1% e iterações descartadas pelo k6 <= 1%. A taxa sobe 25% a cada passo de 60 s.
 # A última taxa aprovada é confirmada com mais um passo; se falhar, recua um passo (o joelho é instável).
-# Taxa inicial: 30% da saturação da B, se já medida; senão START_<APP>.
+# REFINAR=1 (depois da bateria): bissecção de 4 passos entre o último aprovado e o primeiro reprovado, mesmo critério;
+#   grava SATF_<app>_<cfg> (resolução ~1,5%), para a métrica de vazão do artigo. A bateria continua usando SAT_.
+# Taxa inicial: 30% da saturação da B, se já medida; senão (ou com START_FORCADO=1) START_<APP>.
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
 declare -A START=([echo]=${START_ECHO:-500} [ob]=${START_OB:-50} [hotel]=${START_HOTEL:-200})
@@ -31,7 +33,8 @@ satura() {  # na configuração atual
     step "[$CFG] $app (SLO p99 <= ${SLO[$app]} ms)"
     local rate=${START[$app]} ok=0 base
     base=$(sed -n "s/^SAT_${app}_B=//p" "$OUT" 2>/dev/null | tail -1)
-    [ "$CFG" != B ] && [ -n "$base" ] && rate=$(( base * 30 / 100 ))
+    # START_FORCADO=1 usa START_<APP> mesmo fora da B (ex.: CI no echo já viola o SLO a 30% da B)
+    [ "$CFG" != B ] && [ -n "$base" ] && [ -z "${START_FORCADO:-}" ] && rate=$(( base * 30 / 100 ))
     k6_run "$app" "$rate" 30s >/dev/null 2>&1 || true
     while passa "$app" "$rate"; do ok=$rate; rate=$(( rate * 5 / 4 )); done
     if [ "$ok" -gt 0 ] && ! passa "$app" "$ok"; then
@@ -44,6 +47,26 @@ satura() {  # na configuração atual
   done
 }
 
+refina() {  # REFINAR=1: bissecção entre SAT_<app>_<cfg> (passou) e +25% (falhou); grava SATF_<app>_<cfg>
+  CFG=$(cat "$STATE/config-atual")
+  log="$STATE/saturacao-fina-$CFG-$(date +%Y%m%d-%H%M).tsv"
+  echo -e "config\tapp\trate\tp99_ms\terr\tdropped" > "$log"
+  for app in "${APPS[@]}"; do
+    local lo hi mid k
+    lo=$(sat_de "$app" "$CFG") || exit 1; hi=$(( lo * 5 / 4 ))
+    step "[$CFG] $app: refinando entre $lo e $hi req/s"
+    k6_run "$app" "$lo" 30s >/dev/null 2>&1 || true
+    for k in 1 2 3 4; do
+      mid=$(( (lo + hi) / 2 ))
+      if passa "$app" "$mid"; then lo=$mid; else hi=$mid; fi
+    done
+    sed -i "/^SATF_${app}_$CFG=/d" "$OUT" 2>/dev/null || true
+    echo "SATF_${app}_$CFG=$lo" >> "$OUT"
+    echo "saturação refinada de $app na $CFG: $lo req/s (resolução $(( hi - lo )) req/s)"
+  done
+}
+
+[ -n "${REFINAR:-}" ] && { satura() { refina; }; }
 if [ -n "${CONFIGS:-}" ]; then
   for cfg in $CONFIGS; do
     "$MESH_DIR/03-config.sh" "$cfg" > "$STATE/03-$cfg-saturacao.log" 2>&1 || die "03-config.sh $cfg falhou"
