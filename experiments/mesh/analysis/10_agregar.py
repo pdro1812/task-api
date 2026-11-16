@@ -27,17 +27,18 @@ import sys
 
 # Componente de cada série do Prometheus (labels namespace, pod, container, node), na ordem de teste
 COMPONENTES = ["app", "proxy", "ztunnel", "waypoint", "cilium_agent", "cilium_envoy", "istio_cni",
-               "control_plane", "monitoring", "outros"]
+               "control_plane", "outras_apps", "monitoring", "outros"]
 
 
-def componente(m):
+def componente(m, app):
     ns, pod, cont = m.get("namespace", ""), m.get("pod", ""), m.get("container", "")
-    if cont in ("istio-proxy", "linkerd-proxy"):
-        return "proxy"                                  # sidecar por pod (IS, LK)
-    if pod.startswith("waypoint-"):
-        return "waypoint"                               # Envoy compartilhado por namespace (IA7)
+    # ztunnel e waypoint antes do sidecar: o contêiner deles também se chama istio-proxy
     if ns == "istio-system" and pod.startswith("ztunnel"):
         return "ztunnel"                                # proxy L4 por nó (IA4, IA7)
+    if pod.startswith("waypoint-"):
+        return "waypoint"                               # Envoy compartilhado por namespace (IA7)
+    if cont in ("istio-proxy", "linkerd-proxy"):
+        return "proxy"                                  # sidecar por pod (IS, LK)
     if ns == "istio-system" and pod.startswith("istio-cni"):
         return "istio_cni"
     if ns == "kube-system" and pod.startswith("cilium-envoy"):
@@ -46,14 +47,16 @@ def componente(m):
         return "cilium_agent"                           # agente/datapath eBPF (CNI em todas; WireGuard na CI)
     if ns in ("istio-system", "linkerd") or pod.startswith("cilium-operator"):
         return "control_plane"                          # istiod, linkerd destination/identity/injector, operador
+    if ns == app:
+        return "app"                                    # só a aplicação medida na rodada
     if ns in ("echo", "ob", "hotel"):
-        return "app"
+        return "outras_apps"                            # as outras duas ficam implantadas, ociosas
     if ns == "monitoring":
         return "monitoring"
     return "outros"
 
 
-def media_por_componente(arquivo):
+def media_por_componente(arquivo, app):
     """Soma das séries de cada componente e média no tempo; {} se o arquivo faltar ou estiver vazio."""
     try:
         with open(arquivo) as f:
@@ -64,7 +67,7 @@ def media_por_componente(arquivo):
     for serie in res:
         vals = [float(v) for _, v in serie.get("values", [])]
         if vals:
-            c = componente(serie["metric"])
+            c = componente(serie["metric"], app)
             soma[c] = soma.get(c, 0.0) + sum(vals) / len(vals)
     return soma
 
@@ -133,8 +136,8 @@ def rodada(d, cfg_dir, idle_w, cdf_dir):
     j_req = ""
     if pkg_j is not None and idle_w is not None and reqs:
         j_req = (pkg_j - idle_w * seconds) / reqs
-    cpu = media_por_componente(os.path.join(d, "prom-cpu.json"))
-    mem = media_por_componente(os.path.join(d, "prom-mem.json"))
+    cpu = media_por_componente(os.path.join(d, "prom-cpu.json"), meta["app"])
+    mem = media_por_componente(os.path.join(d, "prom-mem.json"), meta["app"])
     linha = {"config": meta["config"], "app": meta["app"], "load": meta["load"], "rate": meta["rate"],
              "rep": meta["rep"], "rps": round(rps, 2), **lat,
              "err": valor(summ, "http_req_failed", "rate"),

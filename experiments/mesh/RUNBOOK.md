@@ -30,11 +30,10 @@ Convenções:
 | ✅ | Checado: o k6 não é o gargalo no echo (núcleos E a ~53%); o joelho é do cluster (relay do fortio) | 14/11 |
 | ✅ | Scripts de análise testados com dados sintéticos (`analysis/gera_sintetico.py`) | 14/11 |
 | ✅ | SLOs mantidos (20/500/100 ms); `SAT_echo_B=11352` | 14/11 |
-| ⏳ | MeshInsight: a 992 req/s o IS colapsa (vazão máx. do IS no OB ≈ 760, −31%); refazendo a 551 req/s | 14/11 |
-| ⬜ | Saturação nas 6 configurações (`CONFIGS=... ./04-saturacao.sh`) | |
-| ⬜ | Bateria principal (`05-bateria.sh`), 540 rodadas | |
-| ⬜ | Perfil RQ2 (`06-perfil.sh`) | |
-| ⬜ | Análise, figuras e modelo (`analysis/`) | |
+| ✅ | MeshInsight: a 992 req/s o IS colapsa; a 551 e a 275 req/s a CPU reproduz (+80%, +129%), a latência não (+1482%, +416%); sidecar sem estrangulamento de CPU (concurrency 2, limite 2 CPUs, 0% throttled) | 15/11 |
+| ✅ | Saturação nas 6 configurações; bases da bateria (mínimos): echo 2382, ob 643, hotel 865 req/s | 15/11 |
+| ⏳ | **Bateria principal** iniciada em 16/11 08:36 em `/mnt/dados/resultados/bateria-1` (ETA ~17/11 22:00; ~4,1 min por rodada) | 16/11 |
+| ⏳ | **Pipeline pós-bateria** (`99-pipeline.sh`) esperando a bateria: análise → saturação refinada → perfil → figuras → volta à B | 16/11 |
 | ⬜ | Artigo (`paper/`), resumo no EasyChair (24/11) e submissão (01/12) | |
 
 Validação das configurações (13/11):
@@ -49,6 +48,25 @@ Validação das configurações (13/11):
 | CI | Cilium com WireGuard + política L7 no Envoy do nó | WireGuard com 3 peers; `l7-all` válida; Envoy recebendo tráfego |
 
 ---
+
+## Em execução agora (16/11)
+
+| Processo | Log | Acompanhar |
+| --- | --- | --- |
+| Bateria (`05-bateria.sh`) | `/mnt/dados/resultados/bateria-1.log` | `echo "$(find /mnt/dados/resultados/bateria-1 -name meta.json \| wc -l)/540"; tail -3 /mnt/dados/resultados/bateria-1.log` |
+| Pipeline (`99-pipeline.sh`) | `/mnt/dados/resultados/pipeline.log` | `tail -5 /mnt/dados/resultados/pipeline.log; ls /mnt/dados/resultados/.pipeline` |
+
+- Os dois rodam desacoplados (`setsid nohup`): sobrevivem ao terminal fechado e à sessão do Claude cair. **Não**
+  sobrevivem a um reboot.
+- Parar: `pkill -f 99-pipeline.sh; pkill -f 05-bateria.sh; pkill -f 'k6 run'`.
+- Retomar (depois de `./00-host.sh` e `docker ps` vazio):
+  `setsid nohup ./05-bateria.sh /mnt/dados/resultados/bateria-1 > /mnt/dados/resultados/bateria-1.log 2>&1 < /dev/null &`
+  e depois `setsid nohup ./99-pipeline.sh > /dev/null 2>&1 < /dev/null &`. As rodadas e etapas prontas são puladas.
+- A bateria pausa sozinha (retomável) se `/mnt/dados` cair abaixo de 3 GB livres.
+- Etapas do pipeline e duração estimada: análise ~20 min; saturação refinada por bissecção nas 6 configs ~1,7 h
+  (`/mnt/dados/resultados/saturacao-fina`); perfil RQ2 ~50 min (`/mnt/dados/resultados/perfil`, primeiro uso do
+  `06-perfil.sh`); figuras finais ~2 min; volta à B ~5 min. Total ~3 h depois da bateria (ETA ~18/11 01:00).
+- Tabelas e figuras saem em `paper/tables/` e `paper/figs/`.
 
 ## (b) Antes de cada sessão de medição
 
