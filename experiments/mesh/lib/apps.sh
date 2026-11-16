@@ -156,7 +156,11 @@ wait_apps() {
 smoke_test() {
   local ip=${VM_IP[w1]} fail=0
   for url in "http://$ip:30082/echo" "http://$ip:30080/" "http://$ip:30081/hotels?inDate=2015-04-09&outDate=2015-04-10&lat=37.7749&lon=-122.4194"; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+    # até ~1 min: logo depois do deploy um serviço (ex.: cartservice, .NET) pode ainda recusar conexões
+    for _ in $(seq 1 12); do
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+      [ "$code" = 200 ] && break; sleep 5
+    done
     echo "$code $url"
     [ "$code" = 200 ] || { warn "resposta $code em $url"; fail=1; }
   done
