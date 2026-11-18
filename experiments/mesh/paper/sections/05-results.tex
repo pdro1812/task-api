@@ -1,0 +1,209 @@
+% 05-results.tex -- draft from the battery of 17/11 (540 runs).
+% Numbers: medians of 10 repetitions (k6 summaries, confirmed by per-request
+% percentiles). Re-check every number against paper/tables before submission.
+% Energy paragraphs wait for the halt-polling decision.
+
+\section{RQ1: What Does Each Mesh Cost?}
+\label{sec:rq1}
+
+\paragraph{Throughput}
+\Cref{tab:sat} reports the maximum throughput each configuration sustains
+within the SLO. Every mesh reduces it, but by very different amounts. Ambient
+L4 keeps 78--85\% of the no-mesh throughput on all three applications. At the
+other end, Cilium sustains only 21\% on the echo benchmark, and the Istio
+sidecar 30\%. On Hotel Reservation, the three configurations that route
+traffic through a shared L7 proxy (the Ambient waypoint, Cilium's per-node
+Envoy) and Linkerd all fall to 47\%, below the Istio sidecar (54\%).
+
+\begin{table}[t]
+  \centering
+  \caption{Maximum SLO-compliant throughput (req/s) and fraction of the
+           no-mesh baseline.}
+  \label{tab:sat}
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+         & Echo & OB & HR \\
+    \midrule
+    B    & 14012        & 1274       & 2287 \\
+    IA4  & 11688 (83\%) & 990 (78\%) & 1953 (85\%) \\
+    IA7  & 8208 (59\%)  & 953 (75\%) & 1067 (47\%) \\
+    LK   & 5253 (37\%)  & 793 (62\%) & 1068 (47\%) \\
+    IS   & 4202 (30\%)  & 793 (62\%) & 1233 (54\%) \\
+    CI   & 2939 (21\%)  & 915 (72\%) & 1067 (47\%) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Tail latency}
+\Cref{fig:p99load} shows p99 latency against load, and \cref{tab:p99} the
+medians with significance against the baseline. At 90\% load, Ambient L4 adds
+the least: +60\% on echo, +62\% on OB, and +54\% on HR. The Istio sidecar is
+the worst on OB, the application with the deepest call graph (11 internal calls
+per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
++1025\% (11.9 to 133.7\,ms). Cilium is the worst on echo (+799\%), even though
+the echo chain has a single internal hop. Linkerd is consistently better than
+the Istio sidecar (+463\% vs.\ +1025\% on OB) although both place a proxy in
+every pod. The ranking is the same at 60\% load. The p99.9 follows it: at 90\% load the
+Istio sidecar multiplies the baseline p99.9 by 8.4 on OB and Linkerd by 5.4,
+while Ambient L4 stays within 1.2--1.6$\times$ on all three applications;
+Cilium reaches 6.8$\times$ on echo. The differences are not marginal.
+Kruskal--Wallis rejects equal p99 across configurations for every application
+and load ($p<10^{-9}$), all 45 mesh-versus-baseline comparisons remain
+significant after Holm correction (largest adjusted $p = 0.0009$), and Cliff's
+$\delta = 1$ in every case: every repetition of every mesh is slower than every
+repetition of the baseline.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/p99_carga.pdf}
+  \caption{p99 latency vs.\ load level (median of 10 runs).}
+  \label{fig:p99load}
+\end{figure}
+
+\begin{table*}[t]
+  \centering
+  \caption{p99 latency (ms), median of 10 runs. $^{*}$: different from B
+           (Mann--Whitney, Holm-corrected, $p<0.05$).}
+  \label{tab:p99}
+  \small
+  \input{tables/p99_ms}
+\end{table*}
+
+\paragraph{CPU and memory}
+\Cref{fig:resources} breaks CPU down by component, normalized per
+1{,}000\,req/s. At 90\% load, Ambient L4 adds the least CPU (+33\% to +61\%
+depending on the application), while Cilium adds the most (+93\% on OB and
++306\% on echo). The Istio sidecar adds +215\% on echo and +116\% on HR.
+The dominant component differs by design: the per-pod proxies for the Istio
+sidecar and Linkerd (on OB, 4.8 and 3.6 cores per 1{,}000\,req/s), ztunnel
+for Ambient L4 (2.1), ztunnel and the waypoint in similar shares for IA7 (1.3
+and 1.9), and, for Cilium, the agent and the per-node Envoy in equal parts (2.6
+and 3.1). Memory is mostly a fixed cost: the Istio sidecars hold 1.8\,GiB
+across the 32 application pods (about 57\,MiB each), against 0.22\,GiB for
+Linkerd's proxies (about 7\,MiB each); ztunnel uses about 100\,MiB in total and
+the three waypoints 375\,MiB. The Istio and Linkerd control planes add about
+165 and 145\,MiB on the control-plane node.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/recursos.pdf}
+  \caption{CPU and memory per 1{,}000\,req/s by component, at 90\% load.}
+  \label{fig:resources}
+\end{figure}
+
+\paragraph{Energy}
+\todo{Pending the halt-polling check. State the common idle baseline (idle
+power of B), J/req per mesh, and the virtualization caveat.}
+
+\paragraph{Variability}
+Results are stable across repetitions: the coefficient of variation of p99
+never exceeds 0.22 (Linkerd on OB at 90\% load). Five of the 540 runs, all on
+HR, had error rates between 0.13\% and 0.38\%, and one dropped 37 requests;
+all are below the 1\% threshold and are kept.
+
+\section{RQ2: Where Does the Cost Come From?}
+\label{sec:rq2}
+
+\todo{Write from paper/figs/perfil.pdf once categories are final.} A first cut
+of the CPU samples on the node that hosts the echo relay shows the Istio
+sidecar's Envoy threads taking about 13\% of the samples, almost twice the
+application itself (7\%). With Cilium, the per-node Envoy takes about 8.5\% and
+the Cilium agent 6.4\%. \todo{TLS vs.\ L7 parsing vs.\ socket I/O vs.\ kernel
+(softirq, eBPF run time); context switches and syscalls per request; explain
+why Cilium is worst on echo (WireGuard + node Envoy on every request?)}
+
+\section{RQ3: Can the Overhead Be Predicted?}
+\label{sec:rq3}
+
+\paragraph{Model}
+We model the latency added by a mesh as
+\begin{equation}
+  \Delta L = P_{m}(a)\, c_{m} + q_{m}\, \frac{\rho_{\text{hot}}}{1-\rho_{\text{hot}}},
+  \label{eq:model}
+\end{equation}
+where $P_m(a)$ is the number of proxy traversals that mesh $m$ adds to a
+request of application $a$, $c_m$ is the cost of one traversal,
+$\rho_{\text{hot}}$ is the measured CPU utilization of the busiest worker, and
+$q_m$ scales the queueing term. $P_m(a)$ comes from the call graph measured
+with Istio telemetry: echo makes 1 internal call per request (across nodes),
+OB 11 (10.4 across nodes), and HR 3.8 (1.0 across nodes, 2.8 on the same
+node). A sidecar mesh adds two traversals per call, ztunnel one per node
+crossed, and the waypoint one more per L7 call. We fit $c_m$ and $q_m$ by
+non-negative least squares on echo and OB and predict HR, which is held out.
+
+\paragraph{Results}
+\Cref{tab:model} shows the prediction error. For Ambient L4 the model predicts
+the p99 of HR with 11\% error (22\% for the mean), and yields a cost of
+72--120\,\textmu s per ztunnel traversal. For the other meshes it does not
+generalize: errors range from 82\% (Linkerd) to 140\% (Ambient with waypoint)
+on p99. For the Istio sidecar and the waypoint, the fit assigns the whole
+overhead to the queueing term ($c_m = 0$): on OB, the frontend and its proxy
+saturate the node that hosts them, and the per-hop cost cannot be separated
+from queueing on that node. We therefore read RQ3 as a partial answer. A
+per-traversal model suffices when the data plane is light (L4), but for L7
+data planes tail latency is governed by the utilization of the busiest node,
+which depends on placement as much as on the mesh. Leaving one load level out
+instead of one application gives p99 errors from 27\% (Ambient L4) to 111\%
+(Istio sidecar), which confirms this reading.
+
+\begin{table}[t]
+  \centering
+  \caption{Model parameters and prediction error on HR (held out). $P$:
+           proxy traversals per request; $c$: fitted cost per traversal;
+           LOLO: error when leaving one load level out.}
+  \label{tab:model}
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \input{tables/modelo}
+\end{table}
+
+\section{RQ4: Which Mesh Should I Use?}
+\label{sec:rq4}
+
+\todo{Turn into a compact table: budget (latency, CPU, energy, L7 features)
+$\rightarrow$ mesh.} Our measurements suggest four rules. (1) If only mTLS and
+L4 policy are needed, Ambient L4 is the cheapest option on every metric we
+measured. (2) If L7 features are needed, Linkerd costs less than the Istio
+sidecar in tail latency on deep call graphs, but its throughput on HR matches
+the waypoint and Cilium (47\%). (3) Shared L7 proxies (waypoint, Cilium's node
+Envoy) concentrate work on a few nodes. Their placement should be treated as a
+capacity-planning decision, because the busiest node sets the tail. (4) Cilium's
+service mesh carries the highest CPU cost per request in our setup, so its
+benefits are better suited to clusters that already use it for networking and
+need few L7 rules.\todo{check rule 4 against profiling}
+
+\section{Threats to Validity}
+\label{sec:threats}
+
+\paragraph{Single host}
+All VMs share one host, memory bus, and last-level cache. We mitigate this by
+pinning every vCPU to a dedicated physical thread and by validating against
+MeshInsight (\cref{sec:validation}), but absolute numbers will differ on
+physical clusters.
+
+\paragraph{Energy under virtualization}
+RAPL measures the whole package, including the hypervisor. We found that KVM
+halt-polling makes idle-heavy configurations draw more power than their
+in-guest CPU use predicts.\todo{finalize after the halt-polling check}
+
+\paragraph{Ordering}
+Runs are randomized within each configuration, but configurations ran in
+blocks. An interleaved control experiment (B and IS alternated in blocks)
+reproduced the same power difference at the same temperatures, which rules out
+time of day and temperature as its cause.
+
+\paragraph{Versions and defaults}
+Meshes evolve quickly; we pin versions and use default proxy settings, which
+may not match tuned production deployments.
+
+\paragraph{Applications}
+Two benchmark applications and a microbenchmark cannot represent every call
+graph; Hotel Reservation keeps most of its calls on the same node under our
+placement, which favors node-level proxies.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+\todo{4--5 sentences: the ranking, the hot-node effect, the model's partial
+success, the release.}

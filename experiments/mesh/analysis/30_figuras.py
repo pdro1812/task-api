@@ -86,7 +86,7 @@ def fig_p99(df, saida):
     salva(fig, saida, "p99_carga.pdf")
 
 
-def fig_recursos(df, saida, carga=60):
+def fig_recursos(df, saida, carga=90):
     g = df[df.load == carga]
     if g.empty:
         return

@@ -1,0 +1,63 @@
+% 02-background.tex -- draft.
+\section{Background: Service Mesh Data Planes}
+\label{sec:background}
+
+A service mesh has a \emph{control plane}, which distributes identities,
+certificates, and routing policy, and a \emph{data plane}, which handles
+application traffic. Our measurements concern the data plane, whose
+architecture determines how many proxies a request crosses and where their work
+is executed. \Cref{tab:configs} summarizes the configurations we study.
+
+\paragraph{Per-pod sidecars}
+In Istio's sidecar mode, an Envoy proxy is injected into every pod, and
+iptables rules redirect all inbound and outbound traffic through it. A request
+between two services therefore traverses two proxies, each of which terminates
+TCP, performs mTLS, and parses HTTP or gRPC to apply L7 policy and collect
+telemetry. Linkerd uses the same pattern with \texttt{linkerd2-proxy}, a
+purpose-built proxy written in Rust that implements a smaller feature set.
+
+\paragraph{Istio Ambient}
+Ambient mode removes the sidecar. A per-node proxy, ztunnel, captures pod
+traffic and carries it between nodes over mTLS in an HTTP CONNECT-based tunnel
+(HBONE). ztunnel provides L4 functions only: identity, encryption, and L4
+authorization. When L7 features are required, traffic is additionally routed
+through a \emph{waypoint}, a shared Envoy deployment that serves a namespace or
+a service account. Ambient therefore has two operating points, L4-only (IA4)
+and L4 plus waypoint (IA7), which we measure separately.
+
+\paragraph{Cilium service mesh}
+Cilium implements networking, load balancing, and L3/L4 policy with eBPF
+programs attached to the kernel datapath. Transparent encryption between nodes
+uses WireGuard (or IPsec), and L7 policy is enforced by redirecting the matching
+traffic to an Envoy instance shared by all pods on the node. Unlike the other
+meshes, Cilium encrypts at the node level rather than per workload, and only
+traffic subject to an L7 rule is sent through a proxy.
+
+\paragraph{Where the cost goes}
+These designs differ in three ways that matter for performance: the number of
+user-space proxies on the request path (two for sidecars, zero to two for
+Ambient and Cilium), whether those proxies are dedicated to a pod or shared by
+a node, and how much work is moved into the kernel. Shared proxies amortize
+memory but concentrate CPU on the node that hosts them, which, as we show in
+\cref{sec:rq1}, matters for tail latency under load.
+
+\begin{table}[t]
+  \centering
+  \caption{Configurations measured. All meshes run with mutual authentication
+           and encryption enabled.}
+  \label{tab:configs}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    ID  & Configuration            & Data plane on the path \\
+    \midrule
+    B   & No mesh (Cilium CNI)     & none \\
+    IS  & Istio sidecar            & Envoy in every pod \\
+    IA4 & Istio Ambient, L4        & per-node ztunnel \\
+    IA7 & Istio Ambient + waypoint & ztunnel + per-namespace Envoy \\
+    LK  & Linkerd                  & \texttt{linkerd2-proxy} in every pod \\
+    CI  & Cilium service mesh      & eBPF, WireGuard, per-node Envoy \\
+    \bottomrule
+  \end{tabular}
+\end{table}
