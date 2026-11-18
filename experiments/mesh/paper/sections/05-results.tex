@@ -105,13 +105,66 @@ all are below the 1\% threshold and are kept.
 \section{RQ2: Where Does the Cost Come From?}
 \label{sec:rq2}
 
-\todo{Write from paper/figs/perfil.pdf once categories are final.} A first cut
-of the CPU samples on the node that hosts the echo relay shows the Istio
-sidecar's Envoy threads taking about 13\% of the samples, almost twice the
-application itself (7\%). With Cilium, the per-node Envoy takes about 8.5\% and
-the Cilium agent 6.4\%. \todo{TLS vs.\ L7 parsing vs.\ socket I/O vs.\ kernel
-(softirq, eBPF run time); context switches and syscalls per request; explain
-why Cilium is worst on echo (WireGuard + node Envoy on every request?)}
+We profiled every configuration at 60\% load on echo and OB
+(\cref{sec:design}) and attribute to the data plane all samples of the proxy
+processes (Envoy, \texttt{linkerd2-proxy}, ztunnel, the Cilium agent) plus any
+kernel stack that runs WireGuard or an eBPF program. \Cref{fig:perfil}
+breaks this CPU down per request and \cref{tab:perfil} summarizes it.
+
+\paragraph{What each data plane spends}
+On OB, the baseline spends 0.64\,ms of CPU per request in its data plane (the
+Cilium CNI's eBPF programs). The Istio sidecar spends 5.5\,ms, of which 61\% is
+HTTP/2 framing and header compression (\texttt{nghttp2}): with 11 internal
+calls per request, each crossing two sidecars, protocol processing dominates,
+as MeshInsight found for an older Envoy~\cite{zhu2023meshinsight}. Ambient L4
+spends 2.6\,ms, almost half of it (47\%) in TLS inside ztunnel and no L7
+parsing; adding the waypoint (IA7) raises it to 4.2\,ms, split between the
+waypoint's HTTP processing (39\%) and ztunnel's TLS (31\%). Linkerd spends
+4.6\,ms; because its proxy is distributed without symbols, 46\% of it can only
+be attributed to the proxy as a whole, and 13\% is kernel networking. Every
+mesh also multiplies kernel crossings: on OB, the proxy processes make 191
+(IS) to 329 (CI) system calls and 58 to 152 context switches per request,
+against 48 and 31 in the baseline.
+
+\paragraph{Why Cilium is the slowest on echo}
+On echo, Cilium spends 0.92\,ms of data-plane CPU per request, 9.6$\times$ the
+baseline and 1.6$\times$ the Istio sidecar, although the request crosses a
+single internal hop. Every request is redirected to the per-node Envoy by the
+L7 rule on both nodes, is encrypted by WireGuard (14\% of the total), and makes
+the Cilium agent spend almost as much CPU as Envoy itself (36\,s against 39\,s
+over the profiling window). It also has the most context switches per request
+(27, against 12 for the sidecar). We could not resolve the agent's symbols, so
+we cannot say which agent function consumes this time.
+
+\paragraph{Why the Istio sidecar is the slowest on OB}
+On OB, Cilium spends even more CPU per request than the sidecar (7.2 against
+5.5\,ms), yet its p99 is lower (77 against 134\,ms at 90\% load). The
+difference is where the work runs. The sidecar's cost follows the frontend,
+which issues all 11 internal calls through its own proxy, so it accumulates on
+the frontend's node: at 90\% load that worker is 76\% utilized with the
+sidecar and 68\% with Cilium, whose per-node Envoys spread L7 work over the
+nodes that receive the calls. Tail latency is set by queueing on that node,
+which is the mechanism behind the queueing term of our model (\cref{sec:rq3}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figs/perfil.pdf}
+  \caption{Data-plane CPU per request by category, at 60\% load (sum of the
+           three workers).}
+  \label{fig:perfil}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{Data-plane CPU per request at 60\% load, share spent in
+           cryptography (TLS and WireGuard) and HTTP/gRPC processing, and
+           context switches (cs) and system calls (sys) of the proxy
+           processes per request.}
+  \label{tab:perfil}
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \input{tables/perfil}
+\end{table}
 
 \section{RQ3: Can the Overhead Be Predicted?}
 \label{sec:rq3}
@@ -161,17 +214,37 @@ instead of one application gives p99 errors from 27\% (Ambient L4) to 111\%
 \section{RQ4: Which Mesh Should I Use?}
 \label{sec:rq4}
 
-\todo{Turn into a compact table: budget (latency, CPU, energy, L7 features)
-$\rightarrow$ mesh.} Our measurements suggest four rules. (1) If only mTLS and
-L4 policy are needed, Ambient L4 is the cheapest option on every metric we
-measured. (2) If L7 features are needed, Linkerd costs less than the Istio
-sidecar in tail latency on deep call graphs, but its throughput on HR matches
-the waypoint and Cilium (47\%). (3) Shared L7 proxies (waypoint, Cilium's node
-Envoy) concentrate work on a few nodes. Their placement should be treated as a
-capacity-planning decision, because the busiest node sets the tail. (4) Cilium's
-service mesh carries the highest CPU cost per request in our setup, so its
-benefits are better suited to clusters that already use it for networking and
-need few L7 rules.\todo{check rule 4 against profiling}
+\Cref{tab:guide} condenses our results into a decision guide. Two observations
+cut across it. First, the cheapest mesh is the one that does the least per
+request: Ambient L4 avoids L7 parsing entirely and is the best option on every
+metric we measured. Second, for L7 data planes, where the work runs matters as
+much as how much work there is: shared proxies and services with a high
+fan-out concentrate CPU on a few nodes, and the busiest node sets the tail, so
+their placement should be part of capacity planning.
+
+\begin{table}[t]
+  \centering
+  \caption{Decision guide. Evidence at 90\% load unless stated otherwise.}
+  \label{tab:guide}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}p{0.27\columnwidth}p{0.17\columnwidth}p{0.5\columnwidth}@{}}
+    \toprule
+    Need & Choose & Evidence \\
+    \midrule
+    mTLS and L4 policy only & IA4 & lowest p99 increase (+54 to +62\%), 78--85\% of
+      no-mesh throughput, least CPU; no L7 parsing (\cref{sec:rq2}) \\
+    L7 policy, deep call graphs & LK or IA7 & p99 on OB: +463\% (LK) and +483\% (IA7)
+      vs.\ +1025\% (IS) \\
+    L7 on a high fan-out service & IA7, waypoint off the hot node & the sidecar
+      concentrates the fan-out on one node (76\% utilized) \\
+    Smallest memory footprint & IA4 or LK & ztunnel 100\,MiB in total; Linkerd
+      7\,MiB per pod vs.\ 57\,MiB for Istio sidecars \\
+    Already on Cilium, few L7 rules & CI, scoped L7 rules & highest data-plane CPU per
+      request (0.92\,ms on echo); node Envoy, agent and WireGuard on every request \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \section{Threats to Validity}
 \label{sec:threats}
@@ -205,5 +278,13 @@ placement, which favors node-level proxies.
 \section{Conclusion}
 \label{sec:conclusion}
 
-\todo{4--5 sentences: the ranking, the hot-node effect, the model's partial
-success, the release.}
+We compared six service-mesh configurations on the same testbed, with open-loop
+load and the same absolute request rates for all of them. Istio Ambient in L4
+mode is the cheapest mesh on every metric: it keeps 78--85\% of the no-mesh
+throughput and adds 54--62\% to p99 at 90\% load, while the L7 data planes add
+144--1025\%. Profiling shows where the difference comes from: HTTP/2 processing for
+the Istio sidecar, TLS for ztunnel, and the per-node Envoy, the agent, and
+WireGuard for Cilium. Beyond per-request cost, the tail of L7 meshes is set by
+the busiest node, which a per-hop model cannot capture and placement can
+change. We release the testbed and data so that these results can be
+reproduced and extended.

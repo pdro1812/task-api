@@ -28,12 +28,16 @@ applications, includes the waypoint, and reports energy and a predictive model.
 
 \paragraph{Reducing mesh overhead}
 A separate line of work proposes new data-plane designs rather than measuring
-existing ones. Meshlib~\cite{mostafaei2026meshlib} enforces mesh policy inside
-the application process for sidecar-less meshes, and Cvetkovi\'c and
-Klimovic~\cite{cvetkovic2025lightweight} design a lightweight sidecar-based mesh
-for serverless platforms, where Ambient is not compatible with the platform.
-\todo{re-read both papers and summarize their measured baselines in one
-sentence each} Our measurements are complementary: they quantify the cost these
+existing ones. Meshlib~\cite{mostafaei2026meshlib} builds on Cilium and enforces
+L7 policy inside the application process through an optional library, falling
+back to Cilium's per-node Envoy for unmodified services; on TrainTicket, a
+single node and up to 200\,req/s, it reports lower latency than Istio, Linkerd,
+and unmodified Cilium, and attributes most of the cost of L7 proxying to
+protocol parsing. Cvetkovi\'c and Klimovic~\cite{cvetkovic2025lightweight}
+characterize Istio and Linkerd sidecars on Knative and report 38.3$\times$
+higher p95 execution time with Istio policies and up to 3.9$\times$ higher p95
+CPU per worker; they could not evaluate Ambient, which Knative does not
+support. Neither evaluates Istio Ambient or energy. Our measurements are complementary: they quantify the cost these
 designs aim to remove, on the architectures in production today.
 
 \paragraph{Microservice benchmarks and load generation}
@@ -44,5 +48,8 @@ load with k6~\cite{k6} at a constant arrival rate, avoiding the
 coordinated-omission problem of closed-loop generators, which underestimates
 tail latency~\cite{tene2015latency}. Energy is measured with Intel
 RAPL~\cite{khan2018rapl}.
-\todo{add 1--2 references on energy measurement of cloud-native software, if
-space allows}
+Container-level energy estimators for Kubernetes such as Kepler have been
+found inaccurate~\cite{pijnacker2025kepler}, and per-task RAPL attribution on
+shared nodes must fall back to approximations from CPU
+utilization~\cite{thamm2025rapl}; we therefore report package-level energy per
+request for the whole host rather than per container.

@@ -48,7 +48,8 @@ analise() {
   "$PY" "$MESH_DIR/analysis/40_modelo.py" "$BATERIA/cells.csv"
 }
 figuras() {
-  "$PY" "$MESH_DIR/analysis/30_figuras.py" "$BATERIA" --perfil "$RES/perfil" --saturacao "$STATE/saturacao.env"
+  "$PY" "$MESH_DIR/analysis/30_figuras.py" "$BATERIA" --perfil "$RES/perfil" --saturacao "$STATE/saturacao.env" &&
+  { [ ! -d "$RES/perfil" ] || "$PY" "$MESH_DIR/analysis/50_perfil.py" "$RES/perfil"; }
 }
 
 log "pipeline: bateria=$BATERIA resultados=$RES"

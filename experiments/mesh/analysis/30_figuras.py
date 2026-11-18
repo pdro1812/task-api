@@ -223,7 +223,8 @@ def main():
     fig_p99(df, a.saida)
     fig_recursos(df, a.saida)
     fig_energia(df, a.saida)
-    if a.perfil:
+    # perfil.pdf agora vem do 50_perfil.py (categorias calibradas nas pilhas reais); fig_perfil fica como esboço
+    if a.perfil and os.environ.get("PERFIL_ANTIGO"):
         fig_perfil(a.perfil, a.saida)
     if a.saturacao:
         fig_vazao(a.saturacao, a.saida)
