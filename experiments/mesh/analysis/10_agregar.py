@@ -13,8 +13,11 @@ Colunas de cells.csv:
   rps                                      taxa obtida (requisições / duração medida)
   p50_ms p90_ms p99_ms p999_ms max_ms     latência (do csv.gz com --cdf; senão do k6-summary.json)
   err dropped vus_max                      falhas (fração), iterações descartadas, VUs no pico
-  seconds pkg_j core_j idle_w              duração, energia RAPL do pacote e dos núcleos, potência ociosa (W)
-  j_per_req                                energia líquida do pacote por requisição: (pkg_j - idle_w*seconds)/reqs
+  seconds pkg_j core_j                     duração e energia RAPL do pacote e dos núcleos
+  idle_w                                   potência ociosa da própria configuração (W), medida com o mesh instalado
+  idle_extra_w                             idle_w menos a ociosa da B: custo fixo do mesh em repouso
+  j_per_req                                energia do pacote por requisição, líquida da ociosa da B (base comum):
+                                           (pkg_j - idle_B*seconds)/reqs; inclui o custo fixo do mesh
   cpu_<comp> mem_<comp>                    núcleos médios e MiB médios por componente (ver COMPONENTES)
   mcpu_per_krps_<comp> mib_per_krps_<comp> o mesmo normalizado por 1000 req/s obtidas
 """
@@ -105,7 +108,7 @@ def potencia_ociosa(dir_cfg):
         return None
 
 
-def rodada(d, cfg_dir, idle_w, cdf_dir):
+def rodada(d, cfg_dir, idle_w, idle_b, cdf_dir):
     with open(os.path.join(d, "meta.json")) as f:
         meta = json.load(f)
     try:
@@ -134,8 +137,8 @@ def rodada(d, cfg_dir, idle_w, cdf_dir):
     pkg_j = meta["joules"].get("intel-rapl:0")
     core_j = meta["joules"].get("intel-rapl:0:0")
     j_req = ""
-    if pkg_j is not None and idle_w is not None and reqs:
-        j_req = (pkg_j - idle_w * seconds) / reqs
+    if pkg_j is not None and idle_b is not None and reqs:
+        j_req = (pkg_j - idle_b * seconds) / reqs
     cpu = media_por_componente(os.path.join(d, "prom-cpu.json"), meta["app"])
     mem = media_por_componente(os.path.join(d, "prom-mem.json"), meta["app"])
     linha = {"config": meta["config"], "app": meta["app"], "load": meta["load"], "rate": meta["rate"],
@@ -144,7 +147,9 @@ def rodada(d, cfg_dir, idle_w, cdf_dir):
              "dropped": valor(summ, "dropped_iterations", "count", 0),
              "vus_max": valor(summ, "vus_max", "value"),
              "seconds": round(seconds, 3), "pkg_j": pkg_j, "core_j": core_j,
-             "idle_w": round(idle_w, 3) if idle_w is not None else "", "j_per_req": j_req}
+             "idle_w": round(idle_w, 3) if idle_w is not None else "",
+             "idle_extra_w": round(idle_w - idle_b, 3) if None not in (idle_w, idle_b) else "",
+             "j_per_req": j_req}
     for c in COMPONENTES:
         linha[f"cpu_{c}"] = round(cpu.get(c, 0.0), 5)
         linha[f"mem_{c}"] = round(mem.get(c, 0.0) / 2**20, 2)
@@ -170,10 +175,11 @@ def main():
         if not os.path.isdir(cfg_dir) or cfg == "cdf":
             continue
         idle_w = potencia_ociosa(cfg_dir)
+        idle_b = potencia_ociosa(os.path.join(a.bateria, "B"))   # base comum: ociosa da configuração sem mesh
         for r in sorted(os.listdir(cfg_dir)):
             d = os.path.join(cfg_dir, r)
             if os.path.isfile(os.path.join(d, "meta.json")):
-                linhas.append(rodada(d, cfg_dir, idle_w, cdf_dir))
+                linhas.append(rodada(d, cfg_dir, idle_w, idle_b, cdf_dir))
     if not linhas:
         sys.exit(f"nenhuma rodada com meta.json em {a.bateria}")
     with open(saida, "w", newline="") as f:
