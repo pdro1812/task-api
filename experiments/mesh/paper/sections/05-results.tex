@@ -93,8 +93,24 @@ the three waypoints 375\,MiB. The Istio and Linkerd control planes add about
 \end{figure}
 
 \paragraph{Energy}
-\todo{Pending the halt-polling check. State the common idle baseline (idle
-power of B), J/req per mesh, and the virtualization caveat.}
+\Cref{tab:energy} reports package energy per request, net of the no-mesh idle
+power, from a separate run with KVM halt-polling disabled (\cref{sec:design,sec:threats}). Every mesh costs energy, and the ranking mostly follows CPU. At
+90\% load, Ambient L4 adds 19--62\% per request, the Istio sidecar 22--129\%,
+and Cilium the most, 49--188\%, with its largest overhead on echo. Relative
+overheads are lower on OB, where the application itself dominates the energy
+per request, and higher at 30\% load, where fixed costs are spread over fewer
+requests. With no load, the meshes draw 0.3 (Cilium) to 1.6\,W (Istio sidecar)
+above the baseline's 21.0\,W, the sidecar paying for one idle proxy per pod.
+
+\begin{table}[t]
+  \centering
+  \caption{Package energy per request (mJ), net of the no-mesh idle power,
+           with KVM halt-polling disabled (median of 3 runs).}
+  \label{tab:energy}
+  \footnotesize
+  \setlength{\tabcolsep}{2.5pt}
+  \input{tables/energia}
+\end{table}
 
 \paragraph{Variability}
 Results are stable across repetitions: the coefficient of variation of p99
@@ -256,9 +272,18 @@ MeshInsight (\cref{sec:validation}), but absolute numbers will differ on
 physical clusters.
 
 \paragraph{Energy under virtualization}
-RAPL measures the whole package, including the hypervisor. We found that KVM
-halt-polling makes idle-heavy configurations draw more power than their
-in-guest CPU use predicts.\todo{finalize after the halt-polling check}
+RAPL measures the whole package, including the hypervisor. In our main
+experiment, KVM halt-polling was enabled (200\,\textmu s): an idle vCPU spins
+on the host before sleeping, which draws power without showing up as busy CPU
+inside the guest. Disabling it cut package power by 10--23\% at every load and
+raised the relative energy cost of every mesh, because the baseline, with the
+most short idle periods, had been inflated the most; on OB at 90\% load the
+Istio sidecar went from 8\% below the baseline to 22\% above it. We therefore
+report energy from a run with halt-polling disabled and recommend
+\texttt{halt\_poll\_ns=0} for RAPL-based energy studies in virtual machines.
+Even then, the Istio sidecar draws about 1.6\,W less than a linear fit of power
+against in-guest busy cores predicts, so in-guest CPU is only an approximate
+proxy for host power.
 
 \paragraph{Ordering}
 Runs are randomized within each configuration, but configurations ran in

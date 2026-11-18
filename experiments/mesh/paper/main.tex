@@ -35,7 +35,7 @@ without waypoints, Linkerd, and Cilium with WireGuard and L7 policy---on a pinne
 open-loop load at 30, 60, and 90\% of the lowest saturation throughput among the configurations, using a synthetic echo service, Online Boutique,
 and DeathStarBench Hotel Reservation. On Online Boutique at 60\% load, the Istio sidecar adds 52\,ms to p99 latency, while
 ambient L4 adds 6.7\,ms; per 1000~req/s the extra CPU ranges from 2.6 (ambient L4) to 7.0 (Cilium) cores, and
-energy per request grows by up to \todo{[E]\%}. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar (61\% of its data-plane
+energy per request grows by 16 to 188\% at 90\% load. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar (61\% of its data-plane
 CPU), TLS for ambient L4 (47\%), and the per-node Envoy, agent, and WireGuard for Cilium. A compositional model built from per-hop proxy cost and a queueing term, fitted on two
 applications, predicts the third application's p99 overhead within 11\% for ambient L4, but not for L7 data planes, whose tail is set by the busiest node. We distill the results into
 a decision guide for choosing a data plane.

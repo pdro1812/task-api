@@ -105,7 +105,15 @@ cAdvisor through Prometheus at a 5\,s interval; and (iii) package and core
 energy from RAPL on the host. We subtract the idle power of the no-mesh
 baseline from every configuration, so that each mesh's standing cost is
 included, and report joules per request together with each mesh's idle power
-above the baseline. Resource costs are also
+above the baseline. Energy comes from a second run of the same cells (30\%
+and 90\% load, 3 repetitions) with KVM halt-polling disabled
+(\cref{sec:threats}); latency and resource results come from the main run.
+Without halt-polling, p99 stayed within 10\% of the main run in 25 of the 36
+cells; the baseline itself became 10--29\% faster, and the largest mesh changes
+were Ambient L4 on echo (+15 to +29\%) and the waypoint on HR at 90\% load
+($-$24\%), so overheads relative to the baseline are, if anything, conservative
+in the main run for most meshes. Resource
+costs are also
 normalized to millicores and MiB per 1{,}000\,req/s.
 
 For profiling (RQ2), we repeat each configuration at the 60\% load level and
