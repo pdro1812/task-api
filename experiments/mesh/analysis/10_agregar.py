@@ -12,6 +12,8 @@ Colunas de cells.csv:
   config app load rate rep                 identificação (rate = taxa pedida, req/s)
   rps                                      taxa obtida (requisições / duração medida)
   p50_ms p90_ms p99_ms p999_ms max_ms     latência (do csv.gz com --cdf; senão do k6-summary.json)
+  mean_ms                                  latência média (k6-summary.json)
+  rho_hot                                  utilização de CPU do worker mais ocupado (prom-node-cpu.json)
   err dropped vus_max                      falhas (fração), iterações descartadas, VUs no pico
   seconds pkg_j core_j                     duração e energia RAPL do pacote e dos núcleos
   idle_w                                   potência ociosa da própria configuração (W), medida com o mesh instalado
@@ -95,6 +97,26 @@ def duracoes_csv(arquivo):
     return vals
 
 
+def rho_hot(arquivo, workers=("192.168.150.11", "192.168.150.12", "192.168.150.13")):
+    """Fração de CPU ocupada no worker mais ocupado, média no intervalo da rodada."""
+    try:
+        with open(arquivo) as f:
+            res = json.load(f)["data"]["result"]
+    except (OSError, KeyError, ValueError):
+        return ""
+    ocup, total = {}, {}
+    for s in res:
+        no = s["metric"].get("instance", "").split(":")[0]
+        if no not in workers or not s.get("values"):
+            continue
+        v = sum(float(x) for _, x in s["values"]) / len(s["values"])
+        total[no] = total.get(no, 0.0) + v
+        if s["metric"].get("mode") != "idle":
+            ocup[no] = ocup.get(no, 0.0) + v
+    fr = [ocup.get(n, 0.0) / total[n] for n in total if total[n] > 0]
+    return round(max(fr), 4) if fr else ""
+
+
 def valor(summary, nome, chave, padrao=""):
     return summary.get("metrics", {}).get(nome, {}).get("values", {}).get(chave, padrao)
 
@@ -143,6 +165,8 @@ def rodada(d, cfg_dir, idle_w, idle_b, cdf_dir):
     mem = media_por_componente(os.path.join(d, "prom-mem.json"), meta["app"])
     linha = {"config": meta["config"], "app": meta["app"], "load": meta["load"], "rate": meta["rate"],
              "rep": meta["rep"], "rps": round(rps, 2), **lat,
+             "mean_ms": valor(summ, dur, "avg"),
+             "rho_hot": rho_hot(os.path.join(d, "prom-node-cpu.json")),
              "err": valor(summ, "http_req_failed", "rate"),
              "dropped": valor(summ, "dropped_iterations", "count", 0),
              "vus_max": valor(summ, "vus_max", "value"),
