@@ -54,7 +54,8 @@ run_cell() {  # $1 config, $2 app, $3 carga (rótulo), $4 taxa, $5 repetição, 
   prom_range 'sum by (instance,mode) (rate(node_cpu_seconds_total[15s]))' "$t0" "$t1" "$dir/prom-node-cpu.json"
   cat > "$dir/meta.json" <<JSON
 {"config": "$cfg", "app": "$app", "load": "$load", "rate": $rate, "rep": $rep,
- "start": $t0, "end": $t1, "joules": {$(rapl_joules "$s" "$e")}}
+ "start": $t0, "end": $t1, "joules": {$(rapl_joules "$s" "$e")},
+ "halt_poll_ns": $(cat /sys/module/kvm/parameters/halt_poll_ns 2>/dev/null || echo null)}
 JSON
 }
 

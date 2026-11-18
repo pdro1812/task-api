@@ -56,6 +56,10 @@ for cfg in $(echo "$CONFIGS" | tr ' ' '\n' | shuffle cfg); do
       [ "$livre" -ge $(( ${MIN_LIVRE_GB:-3} * 1024 * 1024 )) ] || \
         die "menos de ${MIN_LIVRE_GB:-3} GB livres em $d: bateria pausada; libere espaço e rode de novo com o mesmo diretório"
     done
+    # REQUER_HP0=1 (05b-energia.sh): só mede com o halt-polling do KVM desligado
+    if [ -n "${REQUER_HP0:-}" ] && [ "$(cat /sys/module/kvm/parameters/halt_poll_ns)" != 0 ]; then
+      die "halt_poll_ns não é 0: rode 'echo 0 | sudo tee /sys/module/kvm/parameters/halt_poll_ns' e retome"
+    fi
     echo "[$(date +%H:%M)] $cfg $i/${#cells[@]}: $app carga $load% ($rate req/s) rodada $rep"
     run_cell "$cfg" "$app" "$load" "$rate" "$rep" "$DIR/$cfg/$app-$load-$rep"
   done < <(printf '%s\n' "${cells[@]}" | shuffle "$cfg")
