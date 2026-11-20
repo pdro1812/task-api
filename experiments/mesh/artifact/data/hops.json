@@ -1,0 +1,134 @@
+{
+ "echo": {
+  "requisicoes_k6": 128521,
+  "rpc_entre_nos": 1.0,
+  "rpc_mesmo_no": 0,
+  "tcp_entre_nos": 0,
+  "tcp_mesmo_no": 0,
+  "arestas": [
+   {
+    "de": "relay",
+    "para": "echo",
+    "tipo": "rpc",
+    "por_req": 1.0,
+    "mesmo_no": false
+   }
+  ]
+ },
+ "ob": {
+  "requisicoes_k6": 34561,
+  "rpc_entre_nos": 10.410809872399525,
+  "rpc_mesmo_no": 0.5965394519834496,
+  "tcp_entre_nos": 0,
+  "tcp_mesmo_no": 0,
+  "arestas": [
+   {
+    "de": "frontend",
+    "para": "currencyservice",
+    "tipo": "rpc",
+    "por_req": 4.227713318480368,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "productcatalogservice",
+    "tipo": "rpc",
+    "por_req": 3.786551315066115,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "cartservice",
+    "tipo": "rpc",
+    "por_req": 0.9000028934347964,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "adservice",
+    "tipo": "rpc",
+    "por_req": 0.8038540551488672,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "recommendationservice",
+    "tipo": "rpc",
+    "por_req": 0.5965394519834496,
+    "mesmo_no": true
+   },
+   {
+    "de": "recommendationservice",
+    "para": "productcatalogservice",
+    "tipo": "rpc",
+    "por_req": 0.5965394519834496,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "shippingservice",
+    "tipo": "rpc",
+    "por_req": 0.09614883828592923,
+    "mesmo_no": false
+   }
+  ]
+ },
+ "hotel": {
+  "requisicoes_k6": 46620,
+  "rpc_entre_nos": 1.0,
+  "rpc_mesmo_no": 2.7896181896181895,
+  "tcp_entre_nos": 0,
+  "tcp_mesmo_no": 0,
+  "arestas": [
+   {
+    "de": "frontend",
+    "para": "profile",
+    "tipo": "rpc",
+    "por_req": 0.9903260403260403,
+    "mesmo_no": true
+   },
+   {
+    "de": "frontend",
+    "para": "reservation",
+    "tipo": "rpc",
+    "por_req": 0.6028528528528528,
+    "mesmo_no": true
+   },
+   {
+    "de": "frontend",
+    "para": "search",
+    "tipo": "rpc",
+    "por_req": 0.5982196482196482,
+    "mesmo_no": false
+   },
+   {
+    "de": "search",
+    "para": "geo",
+    "tipo": "rpc",
+    "por_req": 0.5982196482196482,
+    "mesmo_no": true
+   },
+   {
+    "de": "search",
+    "para": "rate",
+    "tipo": "rpc",
+    "por_req": 0.5982196482196482,
+    "mesmo_no": true
+   },
+   {
+    "de": "frontend",
+    "para": "recommendation",
+    "tipo": "rpc",
+    "por_req": 0.3921063921063921,
+    "mesmo_no": false
+   },
+   {
+    "de": "frontend",
+    "para": "user",
+    "tipo": "rpc",
+    "por_req": 0.009673959673959674,
+    "mesmo_no": false
+   }
+  ]
+ }
+}
