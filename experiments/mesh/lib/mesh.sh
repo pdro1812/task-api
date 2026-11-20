@@ -7,7 +7,7 @@
 #   CI   Cilium service mesh: WireGuard entre nós + regra L7 que envia o tráfego HTTP/gRPC ao Envoy do nó
 # Em todos, o salto de entrada (k6 de fora do cluster -> pod "edge") é texto puro; o tráfego leste-oeste é cifrado.
 APP_NS=(echo ob hotel)
-GATEWAY_API_VERSION=${GATEWAY_API_VERSION:-v1.3.0}
+GATEWAY_API_VERSION=${GATEWAY_API_VERSION:-v1.3.0}   # fixado em versions.env
 K3S_CNI=(--set values.cni.cniConfDir=/etc/cni/net.d --set values.cni.cniBinDir=/opt/cni/bin)
 # Planos de controle no nó cp (não disputam CPU com as aplicações nem mudam de nó entre rodadas)
 CP_SELECTOR_KEY=node-role.kubernetes.io/control-plane
@@ -73,7 +73,7 @@ istioctl_bin() {
 
 linkerd_bin() {
   if [ ! -x "$HOME/.linkerd2/bin/linkerd" ]; then
-    curl -fsSL "https://run.linkerd.io/install-$LINKERD_CHANNEL" | sh >/dev/null
+    curl -fsSL "https://run.linkerd.io/install-$LINKERD_CHANNEL" | LINKERD2_VERSION="${LINKERD_VERSION:-}" sh >/dev/null
   fi
   echo "$HOME/.linkerd2/bin/linkerd"
 }

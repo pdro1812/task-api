@@ -16,7 +16,7 @@ images=$( {
   grep -oE 'image: *[^ ]+' "$SRC/microservices-demo/release/kubernetes-manifests.yaml" | awk '{print $2}' \
     | grep -vE 'loadgenerator|busybox'
   grep -rhoE 'image: *[^ ]+' "$SRC/DeathStarBench/hotelReservation/kubernetes" | awk '{print $2}' \
-    | sed "s#deathstarbench/hotel-reservation:latest#deathstarbench/hotel-reservation:$HOTEL_IMAGE_TAG#"
+    | sed -E "s#deathstarbench/hotel-reservation:latest#deathstarbench/hotel-reservation:$HOTEL_IMAGE_TAG#; s#^hashicorp/consul:latest\$#${HOTEL_CONSUL_IMAGE:-hashicorp/consul:latest}#; s#^jaegertracing/all-in-one:latest\$#${HOTEL_JAEGER_IMAGE:-jaegertracing/all-in-one:latest}#; s#^memcached\$#${HOTEL_MEMCACHED_IMAGE:-memcached}#"
   # istiod e componentes do ambient; proxyv2 é injetado (sidecar) ou criado pelo controlador (waypoint)
   for profile in minimal ambient; do
     "$istioctl" manifest generate --set profile=$profile 2>/dev/null | grep -oE 'image: *"?docker\.io/istio/[^" ]+' \

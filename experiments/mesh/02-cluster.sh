@@ -10,10 +10,10 @@ CP_IP=${VM_IP[cp]}
 step "ferramentas do host: kubectl, helm, cilium-cli"
 command -v kubectl >/dev/null || die "falta kubectl"
 if ! command -v helm >/dev/null; then
-  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_DIR="$BIN" USE_SUDO=false bash
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION="$HELM_VERSION" HELM_INSTALL_DIR="$BIN" USE_SUDO=false bash
 fi
 if [ ! -x "$BIN/cilium" ]; then
-  curl -fsSL https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz | tar -xz -C "$BIN" cilium
+  curl -fsSL "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-amd64.tar.gz" | tar -xz -C "$BIN" cilium
 fi
 
 K3S_ENV="INSTALL_K3S_CHANNEL=stable"
@@ -79,6 +79,7 @@ prometheus-node-exporter:
   tolerations: [{operator: Exists}]
 YAML
 helm upgrade --install prometheus prometheus-community/prometheus -n monitoring --create-namespace \
+  ${PROMETHEUS_CHART_VERSION:+--version "$PROMETHEUS_CHART_VERSION"} \
   -f "$STATE/prometheus-values.yaml" --wait --timeout 10m >/dev/null
 record prometheus_chart "$(helm -n monitoring list -o json | jq -r '.[0].chart')"
 

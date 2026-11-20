@@ -121,7 +121,7 @@ deploy_hotel() {
   # tira o "./" do comando e fixa a tag da imagem.
   local f
   for f in $(find "$SRC/DeathStarBench/hotelReservation/kubernetes" -name '*.yaml' | sort); do cat "$f"; echo; echo ---; done \
-    | sed -E 's#^( +- )\./([a-z]+)$#\1\2#; s#deathstarbench/hotel-reservation:latest#deathstarbench/hotel-reservation:'"$HOTEL_IMAGE_TAG"'#' \
+    | sed -E 's#^( +- )\./([a-z]+)$#\1\2#; s#deathstarbench/hotel-reservation:latest#deathstarbench/hotel-reservation:'"$HOTEL_IMAGE_TAG"'#; s#hashicorp/consul:latest#'"${HOTEL_CONSUL_IMAGE:-hashicorp/consul:latest}"'#; s#jaegertracing/all-in-one:latest#'"${HOTEL_JAEGER_IMAGE:-jaegertracing/all-in-one:latest}"'#; s#(image: )memcached$#\1'"${HOTEL_MEMCACHED_IMAGE:-memcached}"'#' \
     | apply_pinned hotel '.items |= map(if .kind == "Deployment" and (.spec.template.spec.containers[0].image | startswith("deathstarbench/hotel-reservation:")) then
           .spec.template.spec.volumes = [{name: "hotel-config", configMap: {name: "hotel-config"}}]
           | .spec.template.spec.containers[0].volumeMounts = [{name: "hotel-config", mountPath: "/workspace/config.json", subPath: "config.json"}]
