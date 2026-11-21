@@ -93,6 +93,12 @@ def fig_p99(df, saida):
         ax.set_xticks([30, 60, 90])
         ax.set_xlabel("load (%)")
         ax.set_yscale("log")
+        # rótulos só em 1, 2 e 5 x 10^k (sem notação científica)
+        fmt = matplotlib.ticker.FuncFormatter(
+            lambda v, _: f"{v:g}" if v > 0 and round(v / 10 ** np.floor(np.log10(v)), 6) in (1, 2, 5) else "")
+        ax.yaxis.set_major_formatter(fmt)
+        ax.yaxis.set_minor_formatter(fmt)
+        ax.tick_params(axis="y", which="minor", labelsize=6)
     axs[0][0].set_ylabel("p99 (ms)")
     axs[0][-1].legend(ncol=1, loc="upper left", bbox_to_anchor=(1, 1))
     salva(fig, saida, "p99_carga.pdf")
