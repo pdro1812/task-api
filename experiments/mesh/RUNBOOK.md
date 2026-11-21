@@ -49,6 +49,30 @@ Validação das configurações (13/11):
 
 ---
 
+## Experimentos complementares (noite de 20 para 21/11)
+
+Revisão crítica de 20/11. Orquestrador: `11-noturno.sh` (marcadores em `/mnt/dados/resultados/.noturno`, retomável).
+
+| Etapa | Script | O quê | Saída |
+| --- | --- | --- | --- |
+| host | `11-noturno.sh` | confere o `00-host.sh`, halt_poll_ns = 200000 (como a bateria), para talhao e kind tcc | `noturno-host.txt` |
+| placement | `10-placement.sh` | OB a 385 e 578 req/s, 5 rep.: fe-alone (B, IS, IA7), wp-moved (IA7, waypoint do ob em w1), orig (IA7, controle) | `placement/` |
+| ci4 | `05-bateria.sh` | CI4 (Cilium só L4: WireGuard, política sem regra L7), 3 apps x 3 cargas x 5 rep. | `ci4/CI4` |
+| cinh | `05-bateria.sh` | CINH (CI sem Hubble) e CINHA (sem Hubble nem log de acesso do Envoy), echo 60/90%, 3 rep. | `ci4/CINH`, `ci4/CINHA` |
+| perfil-bpf | `06-perfil.sh` | `BPF_STATS=1`: run_time_ns dos programas eBPF, CI e CI4, echo e ob | `ci4/perfil-bpf` |
+| saturacao-rep | `04-saturacao.sh` | `SUBIR=1`: confirma SATF_, testa de novo o limite e sobe 5% até 2 reprovações seguidas; primeiro as 12 células censuradas; só começa uma config se couber antes das 09:00 | `saturacao-rep/rep<N>` |
+
+```bash
+./00-host.sh                                                     # depois do reboot (sudo)
+setsid nohup ./11-noturno.sh > /dev/null 2>&1 < /dev/null &
+tail -f /mnt/dados/resultados/noturno.log                        # acompanhar; marcadores em .noturno/
+```
+
+- Parar: `pkill -f 11-noturno.sh; pkill -f 10-placement.sh; pkill -f 05-bateria.sh; pkill -f 04-saturacao.sh; pkill -f 'k6 run'`.
+- **Não editar scripts com a noite rodando**: o bash lê o script aos poucos, e uma edição no meio quebra a execução.
+- Análise: `analysis/.venv/bin/python analysis/10_agregar.py /mnt/dados/resultados/placement` (e `ci4`); CPU por nó:
+  `analysis/12_node_util.py <dir>`.
+
 ## Em execução agora (16/11)
 
 | Processo | Log | Acompanhar |

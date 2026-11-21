@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Prepara uma configuração do experimento: restaura o snapshot base, instala o mesh, implanta as três aplicações,
-# aplica as políticas e faz um teste de fumaça. Uso: ./03-config.sh <B|IS|IA4|IA7|LK|CI>
+# aplica as políticas e faz um teste de fumaça. Uso: ./03-config.sh <B|IS|IA4|IA7|LK|CI|CI4|CINH|CINHA>
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/snapshot.sh"
 source "$MESH_DIR/lib/apps.sh"
 source "$MESH_DIR/lib/mesh.sh"
 export PATH="$STATE/bin:$PATH"
-CFG=${1:?uso: $0 <B|IS|IA4|IA7|LK|CI>}
+CFG=${1:?uso: $0 <B|IS|IA4|IA7|LK|CI|CI4|CINH|CINHA>}
 
 step "[$CFG] restaurando o snapshot base"
 restore_base

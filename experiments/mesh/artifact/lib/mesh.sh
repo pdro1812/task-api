@@ -5,6 +5,9 @@
 #   IA7  Istio ambient + waypoint por namespace (L7 compartilhado), mTLS STRICT
 #   LK   Linkerd (linkerd2-proxy por pod), mTLS sempre ligado
 #   CI   Cilium service mesh: WireGuard entre nós + regra L7 que envia o tráfego HTTP/gRPC ao Envoy do nó
+#   CI4  como a CI, mas a política só tem regras L4 (sem regra L7: o tráfego não passa pelo Envoy do nó)
+#   CINH como a CI, com o Hubble desligado (sem observabilidade L7 dos registros de acesso do Envoy)
+#   CINHA como a CINH, e também sem o log de acesso do Envoy (envoy.log.accessLogEnabled=false)
 # Em todos, o salto de entrada (k6 de fora do cluster -> pod "edge") é texto puro; o tráfego leste-oeste é cifrado.
 APP_NS=(echo ob hotel)
 GATEWAY_API_VERSION=${GATEWAY_API_VERSION:-v1.3.0}   # fixado em versions.env
@@ -13,8 +16,8 @@ K3S_CNI=(--set values.cni.cniConfDir=/etc/cni/net.d --set values.cni.cniBinDir=/
 CP_SELECTOR_KEY=node-role.kubernetes.io/control-plane
 LINKERD_CP=(--set-string "nodeSelector.node-role\\.kubernetes\\.io/control-plane=true"
   --set "tolerations[0].key=$CP_SELECTOR_KEY" --set "tolerations[0].operator=Exists" --set "tolerations[0].effect=NoSchedule")
-# Waypoint de cada namespace (IA7), fixado num nó de trabalho
-declare -A WAYPOINT_NODE=([echo]=w1 [ob]=w2 [hotel]=w3)
+# Waypoint de cada namespace (IA7), fixado num nó de trabalho; WAYPOINT_NODE_OB muda o do ob (10-placement.sh)
+declare -A WAYPOINT_NODE=([echo]=w1 [ob]=${WAYPOINT_NODE_OB:-w2} [hotel]=w3)
 
 istio_cp_overlay() {
   cat > "$STATE/istio-cp.yaml" <<YAML
@@ -123,14 +126,20 @@ install_mesh() {
       "$linkerd" check --wait 10m >/dev/null
       record linkerd "$("$linkerd" version --client --short)"
       ;;
-    CI)
-      cilium upgrade --reuse-values --set encryption.enabled=true --set encryption.type=wireguard --set l7Proxy=true
-      kubectl -n kube-system rollout restart ds/cilium >/dev/null
+    CI|CI4|CINH|CINHA)
+      local extra=()
+      case $cfg in
+        CINH) extra=(--set hubble.enabled=false) ;;
+        CINHA) extra=(--set hubble.enabled=false --set envoy.log.accessLogEnabled=false) ;;
+      esac
+      cilium upgrade --reuse-values --set encryption.enabled=true --set encryption.type=wireguard --set l7Proxy=true "${extra[@]}"
+      kubectl -n kube-system rollout restart ds/cilium ds/cilium-envoy >/dev/null
       kubectl -n kube-system rollout status ds/cilium --timeout=10m >/dev/null
+      kubectl -n kube-system rollout status ds/cilium-envoy --timeout=10m >/dev/null
       record cilium_encryption "$(kubectl -n kube-system exec ds/cilium -- cilium-dbg encrypt status 2>/dev/null | head -1)"
       cilium status --wait --wait-duration 10m >/dev/null
       ;;
-    *) die "configuração desconhecida: $cfg (use B, IS, IA4, IA7, LK ou CI)" ;;
+    *) die "configuração desconhecida: $cfg (use B, IS, IA4, IA7, LK, CI, CI4, CINH ou CINHA)" ;;
   esac
 }
 
@@ -162,8 +171,9 @@ YAML
             -p '{"spec":{"template":{"metadata":{"annotations":{"config.linkerd.io/default-inbound-policy":"all-unauthenticated"}}}}}' >/dev/null
         done
         ;;
-      CI)
-        local l7 l4
+      CI|CI4|CINH|CINHA)
+        local l7 l4 regra=', rules: {http: [{}]}'
+        [ "$cfg" = CI4 ] && regra=''   # CI4: as mesmas portas, só L4
         l7=$(app_ports "$ns" | awk '{printf "%s{port: \"%s\", protocol: TCP}", (NR>1?", ":""), $1}')
         l4=$(for p in $DATASTORE_PORTS; do echo "$p"; done | awk '{printf "%s{port: \"%s\", protocol: TCP}", (NR>1?", ":""), $1}')
         kubectl apply -f - >/dev/null <<YAML
@@ -176,7 +186,7 @@ spec:
   - fromEntities: [all]
     toPorts: [{ports: [$l4]}]
   - fromEntities: [all]
-    toPorts: [{ports: [$l7], rules: {http: [{}]}}]
+    toPorts: [{ports: [$l7]$regra}]
 YAML
         ;;
     esac

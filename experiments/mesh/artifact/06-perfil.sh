@@ -6,6 +6,8 @@
 #   - bpftrace: trocas de contexto e syscalls por processo, tempo de softirq por vetor;
 #   - CI: bpf_stats (run_time_ns e run_cnt de cada programa eBPF) antes e depois, para o custo do datapath eBPF;
 #   - requisições feitas pelo k6 no intervalo (k6-summary.json), para normalizar por requisição.
+# BPF_STATS=1 liga kernel.bpf_stats_enabled nos nós durante a coleta (run_time_ns e run_cnt por programa no
+# bpftool); tem custo próprio, por isso fica desligado no perfil principal e só vale para o custo dos programas eBPF.
 # Uso: ./06-perfil.sh [diretório]   Variáveis: CONFIGS="B IS IA4 IA7 LK CI"  APPS="echo ob"  LOAD=60  PERF_S=60
 # Saída: <diretório>/<cfg>/<app>/{<nó>.folded, <nó>-bpftrace.txt, <nó>-bpf-antes.json, <nó>-bpf-depois.json,
 #        k6-summary.json, meta.json}. Padrão: $RESULTS_ROOT/perfil.
@@ -35,12 +37,14 @@ END { clear(@t); }'
 
 coleta_no() {  # $1 nó, $2 diretório: perf e bpftrace em paralelo na VM, depois copia
   local vm=$1 d=$2
+  [ -n "${BPF_STATS:-}" ] && vssh "$vm" "sudo sysctl -qw kernel.bpf_stats_enabled=1"
   vssh "$vm" "sudo bpftool prog show -j" > "$d/$vm-bpf-antes.json" 2>/dev/null || true
   vssh "$vm" "cd /tmp && sudo rm -f perf.data && \
     (sudo perf record -a -g -F 99 -o /tmp/perf.data -- sleep $PERF_S >/dev/null 2>&1 &) && \
     sudo bpftrace -e '$BPFTRACE' 2>/dev/null; sleep 2; \
     sudo perf script -i /tmp/perf.data 2>/dev/null" > "$d/$vm.perf.txt"
   vssh "$vm" "sudo bpftool prog show -j" > "$d/$vm-bpf-depois.json" 2>/dev/null || true
+  [ -n "${BPF_STATS:-}" ] && vssh "$vm" "sudo sysctl -qw kernel.bpf_stats_enabled=0"
   "$FG/stackcollapse-perf.pl" "$d/$vm.perf.txt" > "$d/$vm.folded" && gzip -f "$d/$vm.perf.txt"
 }
 

@@ -9,6 +9,11 @@
 # A última taxa aprovada é confirmada com mais um passo; se falhar, recua um passo (o joelho é instável).
 # REFINAR=1 (depois da bateria): bissecção de 4 passos entre o último aprovado e o primeiro reprovado, mesmo critério;
 #   grava SATF_<app>_<cfg> (resolução ~1,5%), para a métrica de vazão do artigo. A bateria continua usando SAT_.
+#   SATF_OUT e SAT_LOG_DIR (repetições, 11-noturno.sh) mudam onde vão o SATF_/SATR_ e o .tsv.
+# SUBIR=1 (repetição sem censura): na bissecção de muitas células todos os passos passaram, e o limite superior era
+#   só o passo reprovado uma vez na busca inicial. Aqui: confirma SATF_, testa de novo esse limite (1,25 x SAT_) e
+#   continua subindo 5% por passo até DUAS reprovações seguidas; grava SATR_<app>_<cfg> = a maior taxa aprovada
+#   abaixo dessas duas reprovações (e SATR_FAIL_ = a primeira delas). Lê SATF_ de SATF_BASE (padrão: $OUT).
 # Taxa inicial: 30% da saturação da B, se já medida; senão (ou com START_FORCADO=1) START_<APP>.
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
@@ -49,7 +54,9 @@ satura() {  # na configuração atual
 
 refina() {  # REFINAR=1: bissecção entre SAT_<app>_<cfg> (passou) e +25% (falhou); grava SATF_<app>_<cfg>
   CFG=$(cat "$STATE/config-atual")
-  log="$STATE/saturacao-fina-$CFG-$(date +%Y%m%d-%H%M).tsv"
+  local fout=${SATF_OUT:-$OUT} ldir=${SAT_LOG_DIR:-$STATE}
+  mkdir -p "$ldir"; touch "$fout"
+  log="$ldir/saturacao-fina-$CFG-$(date +%Y%m%d-%H%M).tsv"
   echo -e "config\tapp\trate\tp99_ms\terr\tdropped" > "$log"
   for app in "${APPS[@]}"; do
     local lo hi mid k
@@ -60,13 +67,50 @@ refina() {  # REFINAR=1: bissecção entre SAT_<app>_<cfg> (passou) e +25% (falh
       mid=$(( (lo + hi) / 2 ))
       if passa "$app" "$mid"; then lo=$mid; else hi=$mid; fi
     done
-    sed -i "/^SATF_${app}_$CFG=/d" "$OUT" 2>/dev/null || true
-    echo "SATF_${app}_$CFG=$lo" >> "$OUT"
+    sed -i "/^SATF_${app}_$CFG=/d" "$fout" 2>/dev/null || true
+    echo "SATF_${app}_$CFG=$lo" >> "$fout"
     echo "saturação refinada de $app na $CFG: $lo req/s (resolução $(( hi - lo )) req/s)"
   done
 }
 
+sobe() {  # SUBIR=1: busca para cima até duas reprovações seguidas; grava SATR_<app>_<cfg>
+  CFG=$(cat "$STATE/config-atual")
+  local fout=${SATF_OUT:-$OUT} ldir=${SAT_LOG_DIR:-$STATE} base=${SATF_BASE:-$OUT}
+  mkdir -p "$ldir"; touch "$fout"
+  log="$ldir/saturacao-sobe-$CFG-$(date +%Y%m%d-%H%M).tsv"
+  echo -e "config\tapp\trate\tp99_ms\terr\tdropped" > "$log"
+  for app in "${APPS[@]}"; do
+    local f0 hi rate ok=0 falhas=0 prim=0
+    f0=$(sed -n "s/^SATF_${app}_$CFG=//p" "$base" | tail -1)
+    [ -n "$f0" ] || die "falta SATF_${app}_$CFG em $base"
+    hi=$(( $(sat_de "$app" "$CFG") * 5 / 4 ))
+    step "[$CFG] $app: subindo a partir de $f0 (limite anterior $hi req/s)"
+    k6_run "$app" "$f0" 30s >/dev/null 2>&1 || true
+    for rate in "$f0" "$hi"; do
+      if passa "$app" "$rate"; then ok=$rate; falhas=0; prim=0
+      else falhas=$((falhas + 1)); [ "$falhas" -eq 1 ] && prim=$rate; fi
+    done
+    rate=$hi
+    while [ "$falhas" -lt 2 ]; do
+      rate=$(( rate * 105 / 100 ))
+      if passa "$app" "$rate"; then ok=$rate; falhas=0; prim=0
+      else falhas=$((falhas + 1)); [ "$falhas" -eq 1 ] && prim=$rate; fi
+    done
+    # SATF_ e o limite reprovaram: desce 5% por passo até aprovar (no máximo 8 passos)
+    rate=$f0; local k=0
+    while [ "$ok" -eq 0 ] && [ "$k" -lt 8 ]; do
+      k=$((k + 1)); rate=$(( rate * 95 / 100 ))
+      if passa "$app" "$rate"; then ok=$rate; fi
+    done
+    sed -i "/^SATR_${app}_$CFG=/d; /^SATR_FAIL_${app}_$CFG=/d" "$fout" 2>/dev/null || true
+    echo "SATR_${app}_$CFG=$ok" >> "$fout"
+    echo "SATR_FAIL_${app}_$CFG=$prim" >> "$fout"
+    echo "saturação (subida) de $app na $CFG: $ok req/s (reprovou duas vezes seguidas a partir de $prim)"
+  done
+}
+
 [ -n "${REFINAR:-}" ] && { satura() { refina; }; }
+[ -n "${SUBIR:-}" ] && { satura() { sobe; }; }
 if [ -n "${CONFIGS:-}" ]; then
   for cfg in $CONFIGS; do
     "$MESH_DIR/03-config.sh" "$cfg" > "$STATE/03-$cfg-saturacao.log" 2>&1 || die "03-config.sh $cfg falhou"

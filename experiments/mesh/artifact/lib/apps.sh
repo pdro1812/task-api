@@ -26,9 +26,10 @@ fetch_sources() {
 #   - sem limits de CPU/memória nem livenessProbe: os valores de demonstração dos manifestos (200m de CPU por serviço
 #     no Online Boutique) estrangulam as aplicações, e o liveness reinicia o pod sobrecarregado, o que vira cascata de
 #     timeouts; a saturação passaria a medir esses artefatos, não o cluster (requests e readiness ficam);
-#   - o filtro jq opcional $2 faz os ajustes próprios de cada aplicação (antes do rodízio).
+#   - o filtro jq opcional $2 faz os ajustes próprios de cada aplicação (antes do rodízio);
+#   - o filtro jq opcional $3 muda a posição depois do rodízio (experimento de posicionamento, 10-placement.sh).
 apply_pinned() {
-  local ns=$1 extra=${2:-.}
+  local ns=$1 extra=${2:-.} depois=${3:-.}
   kubectl -n "$ns" create --dry-run=client -o json -f - \
     | jq -s '{apiVersion: "v1", kind: "List", items: map(if .kind == "List" then .items[] else . end)}
           | '"$extra"'
@@ -39,7 +40,8 @@ apply_pinned() {
                 | .spec.template.spec.containers[].imagePullPolicy = "IfNotPresent"
                 | del(.spec.template.spec.containers[].resources.limits, .spec.template.spec.containers[].livenessProbe)
                 | if .spec.template.spec.initContainers then .spec.template.spec.initContainers[].imagePullPolicy = "IfNotPresent" else . end
-              else . end)' \
+              else . end)
+          | '"$depois" \
     | kubectl -n "$ns" apply -f - >/dev/null
 }
 
@@ -97,12 +99,26 @@ spec:
 YAML
 }
 
+# Posição alternativa do Online Boutique (OB_PLACEMENT, 10-placement.sh); o padrão é o rodízio de apply_pinned.
+#   fe-alone: o frontend fica sozinho em w3 (o mesmo nó do rodízio); os outros serviços se revezam entre w1 e w2.
+ob_placement() {
+  case ${OB_PLACEMENT:-orig} in
+    orig) echo . ;;
+    fe-alone) echo '(.items | map(select(.kind == "Deployment" and .metadata.name != "frontend") | .metadata.name) | sort) as $outros
+      | .items |= map(if .kind == "Deployment" then .metadata.name as $n
+          | .spec.template.spec.nodeSelector = {"kubernetes.io/hostname": (if $n == "frontend" then "w3" else ["w1", "w2"][($outros | index($n)) % 2] end)}
+        else . end)' ;;
+    *) die "OB_PLACEMENT desconhecido: $OB_PLACEMENT (use orig ou fe-alone)" ;;
+  esac
+}
+
 deploy_ob() {
   # sem o loadgenerator (a carga vem do k6); frontend é o pod de entrada
   apply_pinned ob '.items |= map(select(.metadata.name != "loadgenerator")
       | if .kind == "Deployment" and .metadata.name == "frontend" then .spec.template.metadata.labels.edge = "true" else . end
       | if .kind == "Service" and .metadata.name == "frontend-external" then
           .spec.type = "NodePort" | .spec.ports = [{name: "http", port: 80, targetPort: 8080, nodePort: 30080}] else . end)' \
+    "$(ob_placement)" \
     < "$SRC/microservices-demo/release/kubernetes-manifests.yaml"
 }
 

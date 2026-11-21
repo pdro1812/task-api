@@ -22,6 +22,7 @@ Colunas de cells.csv:
                                            (pkg_j - idle_B*seconds)/reqs; inclui o custo fixo do mesh
   cpu_<comp> mem_<comp>                    núcleos médios e MiB médios por componente (ver COMPONENTES)
   mcpu_per_krps_<comp> mib_per_krps_<comp> o mesmo normalizado por 1000 req/s obtidas
+  placement waypoint_node_ob halt_poll_ns  posição do OB e do waypoint do ob (10-placement.sh), halt-polling do KVM
 """
 import argparse
 import csv
@@ -180,6 +181,10 @@ def rodada(d, cfg_dir, idle_w, idle_b, cdf_dir):
     for c in COMPONENTES:
         linha[f"mcpu_per_krps_{c}"] = round(1000 * cpu.get(c, 0.0) / (rps / 1000), 3) if rps else ""
         linha[f"mib_per_krps_{c}"] = round(mem.get(c, 0.0) / 2**20 / (rps / 1000), 3) if rps else ""
+    # posição do OB (10-placement.sh); rodadas anteriores a 20/11 não gravavam: posição original
+    linha["placement"] = meta.get("placement", "orig")
+    linha["waypoint_node_ob"] = meta.get("waypoint_node_ob", "w2")
+    linha["halt_poll_ns"] = meta.get("halt_poll_ns", "")
     return linha
 
 
@@ -199,7 +204,10 @@ def main():
         if not os.path.isdir(cfg_dir) or cfg == "cdf":
             continue
         idle_w = potencia_ociosa(cfg_dir)
-        idle_b = potencia_ociosa(os.path.join(a.bateria, "B"))   # base comum: ociosa da configuração sem mesh
+        # base comum: ociosa da configuração sem mesh (no posicionamento, a B do mesmo bloco de posição)
+        idle_b = potencia_ociosa(os.path.join(a.bateria, "B"))
+        if idle_b is None and "-" in cfg:
+            idle_b = potencia_ociosa(os.path.join(a.bateria, cfg.rsplit("-", 1)[0] + "-B"))
         for r in sorted(os.listdir(cfg_dir)):
             d = os.path.join(cfg_dir, r)
             if os.path.isfile(os.path.join(d, "meta.json")):

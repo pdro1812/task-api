@@ -55,7 +55,8 @@ run_cell() {  # $1 config, $2 app, $3 carga (rótulo), $4 taxa, $5 repetição, 
   cat > "$dir/meta.json" <<JSON
 {"config": "$cfg", "app": "$app", "load": "$load", "rate": $rate, "rep": $rep,
  "start": $t0, "end": $t1, "joules": {$(rapl_joules "$s" "$e")},
- "halt_poll_ns": $(cat /sys/module/kvm/parameters/halt_poll_ns 2>/dev/null || echo null)}
+ "halt_poll_ns": $(cat /sys/module/kvm/parameters/halt_poll_ns 2>/dev/null || echo null),
+ "placement": "${OB_PLACEMENT:-orig}", "waypoint_node_ob": "${WAYPOINT_NODE_OB:-w2}"}
 JSON
 }
 
