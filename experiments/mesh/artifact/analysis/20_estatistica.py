@@ -19,9 +19,12 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-ORDEM = ["B", "IS", "IA4", "IA7", "LK", "CI"]
+ORDEM = ["B", "IS", "IA4", "IA7", "LK", "CI", "CI4"]
 NOMES = {"B": "No mesh", "IS": "Istio sidecar", "IA4": "Istio ambient (L4)", "IA7": "Istio ambient + waypoint",
-         "LK": "Linkerd", "CI": "Cilium (WG + L7)"}
+         "LK": "Linkerd", "CI": "Cilium (WG + L7)", "CI4": "Cilium (WG only)"}
+# Comparações entre meshes usadas no guia de decisão (RQ4): Mann-Whitney com Holm dentro de (app, carga)
+PARES = [("IA4", "CI4"), ("IA4", "IA7"), ("IA4", "LK"), ("LK", "IA7"), ("LK", "IS"), ("IA7", "IS"),
+         ("CI4", "CI"), ("IA7", "CI"), ("LK", "CI")]
 ROTULO = {"echo": "Echo", "ob": "OB", "hotel": "HR"}
 ORDEM_APP = ["echo", "ob", "hotel"]
 RNG = np.random.default_rng(2027)
@@ -81,6 +84,22 @@ def analisa(df, metrica):
     return pd.DataFrame(linhas)
 
 
+def pares(df, metrica):
+    linhas = []
+    for (app, load), g in df.groupby(["app", "load"]):
+        cmp = [(a, b) for a, b in PARES if (g.config == a).any() and (g.config == b).any()]
+        ps, regs = [], []
+        for a, b in cmp:
+            va, vb = g.loc[g.config == a, metrica].dropna().values, g.loc[g.config == b, metrica].dropna().values
+            ps.append(stats.mannwhitneyu(va, vb, alternative="two-sided").pvalue)
+            regs.append({"metrica": metrica, "app": app, "load": load, "a": a, "b": b, "n_a": len(va), "n_b": len(vb),
+                         "med_a": float(np.median(va)), "med_b": float(np.median(vb)), "cliff": cliff_delta(va, vb)})
+        for r, p in zip(regs, holm(ps) if ps else []):
+            r["mw_p_holm"] = p
+            linhas.append(r)
+    return pd.DataFrame(linhas)
+
+
 def tabela_tex(res, metrica, rotulo, caminho):
     """Uma linha por configuração; colunas app/carga com 'mediana [IC]' e marca de significância."""
     r = res[res.metrica == metrica]
@@ -101,7 +120,7 @@ def tabela_tex(res, metrica, rotulo, caminho):
                 celulas.append(f"{x.mediana:.2f}{sig}")
             f.write(f"{cfg} & " + " & ".join(celulas) + " \\\\\n")
         f.write("\\bottomrule\n\\end{tabular}\n")
-        f.write(f"% {rotulo}: median of 10 runs; * = different from B (Mann-Whitney, Holm within each column, p<0.05)\n")
+        f.write(f"% {rotulo}: median of 10 runs (5 for CI4); * = different from B (Mann-Whitney, Holm within each column, p<0.05)\n")
 
 
 def main():
@@ -115,6 +134,8 @@ def main():
     res = pd.concat([analisa(df, m) for m in a.metricas if m in df], ignore_index=True)
     saida = os.path.join(os.path.dirname(os.path.abspath(a.cells)), "estatistica.csv")
     res.to_csv(saida, index=False)
+    pd.concat([pares(df, m) for m in a.metricas if m in df], ignore_index=True).to_csv(
+        os.path.join(os.path.dirname(saida), "pares.csv"), index=False)
     os.makedirs(a.tabelas, exist_ok=True)
     for m in a.metricas:
         if m in df:

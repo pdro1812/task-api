@@ -25,10 +25,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-ORDEM = ["B", "IS", "IA4", "IA7", "LK", "CI"]
+ORDEM = ["B", "IS", "IA4", "IA7", "LK", "CI", "CI4"]
 # escala de cinza + traço + marcador: distinguíveis sem cor
 ESTILO = {"B": ("0.0", "-", "o"), "IS": ("0.25", "--", "s"), "IA4": ("0.45", "-.", "^"),
-          "IA7": ("0.6", ":", "v"), "LK": ("0.35", (0, (5, 1)), "D"), "CI": ("0.7", (0, (3, 1, 1, 1)), "x")}
+          "IA7": ("0.6", ":", "v"), "LK": ("0.35", (0, (5, 1)), "D"), "CI": ("0.7", (0, (3, 1, 1, 1)), "x"),
+          "CI4": ("0.5", (0, (1, 1)), "+")}
 HACHURAS = ["", "///", "\\\\\\", "xxx", "...", "ooo", "---", "+++", "|||", "**"]
 COMP = ["app", "proxy", "ztunnel", "waypoint", "cilium_agent", "cilium_envoy", "istio_cni", "control_plane"]
 LARGURA = 3.5
@@ -66,17 +67,28 @@ def fig_cdf(bateria, saida, carga="60"):
         salva(fig, saida, f"cdf_{app}.pdf")
 
 
+def ic_mediana(v, n=2000, rng=np.random.default_rng(2027)):
+    v = np.asarray(v, float)
+    meds = np.median(rng.choice(v, size=(n, len(v)), replace=True), axis=1)
+    return np.quantile(meds, [0.025, 0.975])
+
+
 def fig_p99(df, saida):
+    """p99 por carga, mediana das repetições com faixa do IC de 95% da mediana (bootstrap)."""
     apps = [a for a in ("echo", "ob", "hotel") if (df.app == a).any()]
     fig, axs = plt.subplots(1, len(apps), figsize=(LARGURA, 1.8), squeeze=False)
     for ax, app in zip(axs[0], apps):
-        g = df[df.app == app].groupby(["config", "load"])["p99_ms"].median().reset_index()
+        d = df[df.app == app]
         for cfg in ORDEM:
-            x = g[g.config == cfg].sort_values("load")
+            x = d[d.config == cfg]
             if x.empty:
                 continue
+            loads = sorted(x.load.unique())
+            med = [x[x.load == l].p99_ms.median() for l in loads]
+            ic = np.array([ic_mediana(x[x.load == l].p99_ms.values) for l in loads])
             cor, traco, marca = ESTILO[cfg]
-            ax.plot(x.load, x.p99_ms, color=cor, linestyle=traco, marker=marca, markersize=3, label=cfg)
+            ax.fill_between(loads, ic[:, 0], ic[:, 1], color=cor, alpha=0.25, linewidth=0)
+            ax.plot(loads, med, color=cor, linestyle=traco, marker=marca, markersize=3, label=cfg)
         ax.set_title(app)
         ax.set_xticks([30, 60, 90])
         ax.set_xlabel("load (%)")
@@ -215,14 +227,20 @@ def main():
     ap.add_argument("--perfil")
     ap.add_argument("--saturacao", help="saturacao.env do 04-saturacao.sh (SAT_<app>_<cfg>)")
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "..", "paper", "figs"))
+    ap.add_argument("--figs", default="cdf,p99,recursos,energia", help="quais figuras gerar (lista separada por vírgula)")
     a = ap.parse_args()
+    so = set(a.figs.split(","))
     os.makedirs(a.saida, exist_ok=True)
     df = pd.read_csv(os.path.join(a.bateria, "cells.csv"))
     df["load"] = df["load"].astype(int)
-    fig_cdf(a.bateria, a.saida)
-    fig_p99(df, a.saida)
-    fig_recursos(df, a.saida)
-    fig_energia(df, a.saida)
+    if "cdf" in so:
+        fig_cdf(a.bateria, a.saida)
+    if "p99" in so:
+        fig_p99(df, a.saida)
+    if "recursos" in so:
+        fig_recursos(df, a.saida)
+    if "energia" in so:
+        fig_energia(df, a.saida)
     # perfil.pdf agora vem do 50_perfil.py (categorias calibradas nas pilhas reais); fig_perfil fica como esboço
     if a.perfil and os.environ.get("PERFIL_ANTIGO"):
         fig_perfil(a.perfil, a.saida)
