@@ -1,37 +1,37 @@
-config  P_hotel  X_hotel  cp_d_mean  cx_d_mean  q_d_mean  err_hotel_d_mean  err_pos_d_mean  cp_d_p99  cx_d_p99  q_d_p99  err_hotel_d_p99  err_pos_d_p99
-    IS    8.579    2.000        NaN        NaN       NaN               NaN             NaN     0.000     0.000   34.954            1.352          0.398
-   IA4    5.790    2.000        NaN        NaN       NaN               NaN             NaN   119.677     0.000    3.847            0.106            NaN
-   IA7   11.574    5.588        NaN        NaN       NaN               NaN             NaN     0.000     0.000   42.611            1.379          0.269
-    LK    8.579    2.000        NaN        NaN       NaN               NaN             NaN    55.683     0.000   21.377            0.818            NaN
-    CI    4.790    2.000        NaN        NaN       NaN               NaN             NaN   798.252     0.000   23.759            1.398            NaN
-   CI4    0.000    2.000        NaN        NaN       NaN               NaN             NaN     0.000   276.635    2.767            0.127            NaN
-config   app      pos wp  load     P     X  rho   real   pred
-    IS hotel     orig w2    30  8.58  2.00 0.25   7.62  11.79
-    IS hotel     orig w2    60  8.58  2.00 0.48  13.70  32.23
-    IS hotel     orig w2    90  8.58  2.00 0.68  23.32  73.70
-    IS    ob fe-alone w2    60 23.01 12.01 0.52  50.25  38.21
-    IS    ob fe-alone w2    90 23.01 12.01 0.60 116.56  51.65
-   IA4 hotel     orig w2    30  5.79  2.00 0.18   2.26   1.51
-   IA4 hotel     orig w2    60  5.79  2.00 0.32   2.77   2.48
-   IA4 hotel     orig w2    90  5.79  2.00 0.47   4.39   4.17
-   IA7 hotel     orig w2    30 11.57  5.59 0.21   5.97  11.02
-   IA7 hotel     orig w2    60 11.57  5.59 0.39  10.38  26.71
-   IA7 hotel     orig w2    90 11.57  5.59 0.55  22.21  52.84
-   IA7    ob fe-alone w2    60 38.61 16.60 0.62  39.87  70.40
-   IA7    ob fe-alone w2    90 38.61 16.60 0.72  94.43 111.74
-   IA7    ob     orig w1    60 39.40 17.98 0.45  41.66  34.78
-   IA7    ob     orig w1    90 39.40 17.98 0.51 112.83  43.98
-   IA7    ob     orig w2    60 39.05 17.64 0.45  26.99  34.78
-   IA7    ob     orig w2    90 39.05 17.64 0.51  58.62  43.98
-    LK hotel     orig w2    30  8.58  2.00 0.20   4.59   5.82
-    LK hotel     orig w2    60  8.58  2.00 0.38   7.52  13.68
-    LK hotel     orig w2    90  8.58  2.00 0.55  11.73  26.85
-    CI hotel     orig w2    30  4.79  2.00 0.23   4.82  10.83
-    CI hotel     orig w2    60  4.79  2.00 0.44   8.95  22.38
-    CI hotel     orig w2    90  4.79  2.00 0.64  19.26  46.18
-   CI4 hotel     orig w2    30  0.00  2.00 0.14   1.58   1.00
-   CI4 hotel     orig w2    60  0.00  2.00 0.26   1.57   1.52
-   CI4 hotel     orig w2    90  0.00  2.00 0.39   2.05   2.31
+config  P_hotel  X_hotel  cp_d_mean  cx_d_mean  q_d_mean  err_hotel_d_mean  err_pos_d_mean  cp_d_p99  cx_d_p99  q_d_p99  qpx_d_p99  err_hotel_d_p99  err_pos_d_p99  errpx_hotel  errpx_pos
+    IS    8.579    2.000        NaN        NaN       NaN               NaN             NaN     0.000     0.000   34.954        NaN            1.352          0.398        0.520      0.217
+   IA4    5.790    2.000        NaN        NaN       NaN               NaN             NaN   119.677     0.000    3.847        NaN            0.106            NaN        0.070        NaN
+   IA7   11.574    5.588        NaN        NaN       NaN               NaN             NaN     0.000     0.000   42.611        NaN            1.379          0.269        0.860      0.276
+    LK    8.579    2.000        NaN        NaN       NaN               NaN             NaN    55.683     0.000   21.377        NaN            0.818            NaN        0.191        NaN
+    CI    4.790    2.000        NaN        NaN       NaN               NaN             NaN   798.252     0.000   23.759        NaN            1.398            NaN        1.438        NaN
+   CI4    0.000    2.000        NaN        NaN       NaN               NaN             NaN     0.000   276.635    2.767        NaN            0.127            NaN          NaN        NaN
+config   app      pos wp  load     P     X  rho  rho_px   real   pred
+    IS hotel     orig w2    30  8.58  2.00 0.25    0.13   7.62  11.79
+    IS hotel     orig w2    60  8.58  2.00 0.48    0.26  13.70  32.23
+    IS hotel     orig w2    90  8.58  2.00 0.68    0.37  23.32  73.70
+    IS    ob fe-alone w2    60 23.01 12.01 0.52    0.48  50.25  38.21
+    IS    ob fe-alone w2    90 23.01 12.01 0.60    0.57 116.56  51.65
+   IA4 hotel     orig w2    30  5.79  2.00 0.18    0.09   2.26   1.51
+   IA4 hotel     orig w2    60  5.79  2.00 0.32    0.17   2.77   2.48
+   IA4 hotel     orig w2    90  5.79  2.00 0.47    0.25   4.39   4.17
+   IA7 hotel     orig w2    30 11.57  5.59 0.21    0.18   5.97  11.02
+   IA7 hotel     orig w2    60 11.57  5.59 0.39    0.34  10.38  26.71
+   IA7 hotel     orig w2    90 11.57  5.59 0.55    0.50  22.21  52.84
+   IA7    ob fe-alone w2    60 38.61 16.60 0.62    0.49  39.87  70.40
+   IA7    ob fe-alone w2    90 38.61 16.60 0.72    0.56  94.43 111.74
+   IA7    ob     orig w1    60 39.40 17.98 0.45    0.46  41.66  34.78
+   IA7    ob     orig w1    90 39.40 17.98 0.51    0.52 112.83  43.98
+   IA7    ob     orig w2    60 39.05 17.64 0.45    0.46  26.99  34.78
+   IA7    ob     orig w2    90 39.05 17.64 0.51    0.52  58.62  43.98
+    LK hotel     orig w2    30  8.58  2.00 0.20    0.18   4.59   5.82
+    LK hotel     orig w2    60  8.58  2.00 0.38    0.34   7.52  13.68
+    LK hotel     orig w2    90  8.58  2.00 0.55    0.48  11.73  26.85
+    CI hotel     orig w2    30  4.79  2.00 0.23    0.05   4.82  10.83
+    CI hotel     orig w2    60  4.79  2.00 0.44    0.10   8.95  22.38
+    CI hotel     orig w2    90  4.79  2.00 0.64    0.15  19.26  46.18
+   CI4 hotel     orig w2    30  0.00  2.00 0.14    0.00   1.58   1.00
+   CI4 hotel     orig w2    60  0.00  2.00 0.26    0.00   1.57   1.52
+   CI4 hotel     orig w2    90  0.00  2.00 0.39    0.00   2.05   2.31
 config   app  load   rho  rate      xmax     sat     min     max   n  n_censurada  limite_inferior  frac_B    err
      B  echo    90 0.105  2143 20350.473 14899.0 14012.0 14899.0 3.0          1.0              0.0   1.000  0.366
      B hotel    90 0.328   778  2370.353  2373.5  2287.0  2431.0 3.0          1.0              0.0   1.000 -0.001
@@ -52,6 +52,6 @@ config   app  load   rho  rate      xmax     sat     min     max   n  n_censurad
     IS hotel    90 0.678   778  1146.992  1233.0  1233.0  1233.0 1.0          0.0              0.0   0.519 -0.070
     IS    ob    90 0.757   578   763.444   778.0   753.0   803.0 3.0          1.0              0.0   0.611 -0.019
     LK  echo    90 0.246  2143  8698.096  5725.5  5253.0  5865.0 3.0          1.0              0.0   0.384  0.519
-    LK hotel    90 0.552   778  1408.620  1518.0  1068.0  1518.0 2.0          1.0              0.0   0.640 -0.072
+    LK hotel    90 0.552   778  1408.620  1518.0  1068.0  1518.0 3.0          1.0              0.0   0.640 -0.072
     LK    ob    90 0.706   578   818.394   734.0   715.0   793.0 3.0          1.0              0.0   0.576  0.115
 /home/pedro/k8s/task-api/experiments/mesh/analysis/../paper/tables/modelo.tex

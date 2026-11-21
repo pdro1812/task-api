@@ -12,7 +12,7 @@ compositional model of overhead. The authors note that the model does not
 predict tail latency, and that extending the analysis to other meshes is future
 work. We extend the analysis to ztunnel, the Ambient waypoint,
 \texttt{linkerd2-proxy}, and Cilium's eBPF datapath, use open-loop load, add
-energy, and model the tail through a queueing term.
+energy, and test which factors predict the tail.
 
 \paragraph{Comparisons of sidecar and sidecar-less meshes}
 Bremler-Barr et al.~\cite{bremlerbarr2024mtls} compare Istio sidecar, Istio
@@ -23,7 +23,10 @@ also observe that Cilium does not encrypt traffic between pods on the same node,
 a caveat that applies to our setup as well: under our placement, 2.8 of the
 3.8 internal calls per Hotel Reservation request, and 0.6 of the 11 per Online
 Boutique request, stay on one node and are therefore not encrypted by Cilium's
-WireGuard. Our study uses multi-service
+WireGuard. Vendor benchmarks~\cite{istio2025ambientperf} compare the
+encrypted single-connection TCP throughput of ztunnel, Linkerd, and Cilium with
+iperf3, without L7 processing, multi-service applications, or tail latency.
+Our study uses multi-service
 applications, includes the waypoint, and reports energy and a predictive model.
 
 \paragraph{Reducing mesh overhead}
@@ -37,7 +40,11 @@ protocol parsing. Cvetkovi\'c and Klimovic~\cite{cvetkovic2025lightweight}
 characterize Istio and Linkerd sidecars on Knative and report 38.3$\times$
 higher p95 execution time with Istio policies and up to 3.9$\times$ higher p95
 CPU per worker; they could not evaluate Ambient, which Knative does not
-support. Neither evaluates Istio Ambient or energy. Our measurements are complementary: they quantify the cost these
+support. Neither evaluates Istio Ambient or energy. Canal Mesh~\cite{song2024canal}
+moves L7 processing out of the cluster into a centralized, multi-tenant
+gateway and reports 12.3$\times$ the throughput of the Istio sidecar and
+2.3$\times$ that of an early Ambient release; it does not evaluate Linkerd or
+Cilium. Our measurements are complementary: they quantify the cost these
 designs aim to remove, on the architectures in production today.
 
 \paragraph{Microservice benchmarks and load generation}

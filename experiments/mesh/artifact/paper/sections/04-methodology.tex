@@ -33,11 +33,13 @@ mutual TLS. For Cilium we enable WireGuard encryption between nodes and a
 which activates the per-node Envoy; Cilium's workload-level mutual
 authentication is not enabled, so it authenticates nodes, not workloads, and
 does not encrypt same-node traffic. In IA7, each application namespace has its
-own waypoint. Only the entry service of each application accepts plaintext
-traffic from the load generator.
+own waypoint. A seventh configuration, CI4, keeps Cilium's WireGuard
+encryption and applies the same policy with L4 rules only, so no traffic is
+sent to the per-node Envoy. Only the entry service of each application
+accepts plaintext traffic from the load generator.
 
 \paragraph{Cilium settings}
-The same Cilium installation serves as the CNI in all six configurations. It
+The same Cilium installation serves as the CNI in all seven configurations. It
 runs with kube-proxy replacement enabled, so service load balancing is done by
 eBPF programs at each pod's network interface, but with socket-level load
 balancing limited to the host namespace, a setting that Istio and Linkerd
@@ -94,11 +96,12 @@ steps of 25\%, each held for 60\,s, until p99 latency exceeded the SLO
 requests failed or were dropped; the last passing rate was confirmed with one
 more step. After the main experiment, we refined each boundary with four
 bisection steps between the last passing and the first failing rate of that
-search (a resolution of about 1.5\% of the rate). \Cref{tab:sat} reports the
-highest tested rate that met the SLO; in 12 of the 18 cells every bisection
-step passed, so the next tested rate is the one that failed once in the
-initial search. Saturation is a single search per configuration and
-application, without repetitions.
+search (a resolution of about 1.5\% of the rate). In 12 of the 18 cells every
+bisection step passed, so the bisection gave only a lower bound. For those
+cells we ran two more searches that start at the bisection's value and rise
+in 5\% steps until two consecutive steps fail, and record the highest passing
+rate below them. \Cref{tab:sat} reports, per cell, the median over the searches
+that observed a failing rate, with the range over all of them.
 
 \paragraph{Load levels}
 All configurations must be compared at the same absolute request rate, and a
@@ -108,10 +111,9 @@ and 90\% of the \emph{lowest} initial saturation estimate among the six
 configurations (2382\,req/s for echo, 643 for OB, and 865 for HR). This yields
 714, 1429, and 2143\,req/s for echo, 192, 385, and 578\,req/s for OB, and 259,
 519, and 778\,req/s for HR. Throughout the paper, ``30/60/90\% load'' refers to
-these fixed rates. Measured against the refined lowest saturation
-(\cref{tab:sat}: 2939, 793, and 1067\,req/s), they correspond to about 24\%,
-49\%, and 73\% for all three applications, so even the highest level leaves
-every configuration some headroom.
+these fixed rates. Measured against the lowest maximum throughput in
+\cref{tab:sat}, they correspond to 22--26\%, 44--52\%, and 65--79\%, so even
+the highest level leaves every configuration some headroom.
 
 \subsection{Experiment design and metrics}
 \label{sec:design}
@@ -119,7 +121,10 @@ every configuration some headroom.
 The main experiment crosses 6 configurations, 3 applications, and 3 load
 levels, with 10 repetitions per cell, for 540 runs. Latency and resource
 metrics come from these 10 repetitions; energy comes from 3 repetitions per
-cell of a second run (below); saturation is a single search. Within each configuration,
+cell of a second run (below). Three follow-up experiments ran later on the same
+testbed, host settings, and absolute rates: CI4 on all cells with 5
+repetitions (45 runs; no energy); a placement experiment on OB (\cref{sec:rq3},
+50 runs); and a Hubble ablation of CI on echo (\cref{sec:rq2}, 12 runs). Within each configuration,
 the order of runs is randomized with a fixed seed. Each run has 60\,s of
 warm-up, which is discarded, followed by 180\,s of measurement.
 
@@ -143,7 +148,10 @@ normalized to millicores and MiB per 1{,}000\,req/s.
 
 For profiling (RQ2), we repeat each configuration at the 60\% load level and
 record call stacks with \texttt{perf} on the worker VMs and count context
-switches and system calls per request with eBPF (bpftrace).
+switches and system calls per request with eBPF (bpftrace). In a separate
+run, for CI and CI4, we read the run time of every eBPF program with
+\texttt{kernel.bpf\_stats\_enabled}, which adds its own overhead and is
+therefore off in all other runs.
 
 \paragraph{Statistics}
 We report medians across repetitions with 95\% bootstrap confidence intervals.
@@ -162,9 +170,7 @@ increased cluster CPU usage by 129\%, within the published range of
 42--163\%~\cite{zhu2023meshinsight}. Latency increased by 416\% (p50) and 440\%
 (p99), above the published 27--269\%, so the reproduction is partial: CPU
 reproduces, latency does not. At 551\,req/s the latency increase grew
-further (p50 +1482\%), while CPU rose by 80\%. We attribute the higher latency
-to two factors that we analyze in \cref{sec:rq1,sec:rq3}: a newer Istio and
-Envoy, and the concentration of sidecar work on the node that hosts the
-frontend, which reached 77\% utilization at 551\,req/s. The main experiment shows
-the same effect: for the Istio sidecar on OB at 90\% load, the busiest worker
-is 76\% utilized, against 43\% without a mesh.
+further (p50 +1482\%), while CPU rose by 80\%. Possible causes are a newer
+Istio and Envoy and open-loop load; the frontend's sidecar, which carries 10
+of OB's 11 internal calls per request, is the most loaded proxy in our runs
+(\cref{sec:rq2,sec:rq3}), but we did not isolate the cause.

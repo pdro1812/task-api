@@ -8,10 +8,10 @@
 \paragraph{Throughput}
 \Cref{tab:sat} reports the maximum throughput each configuration sustains
 within the SLO. Every mesh reduces it, but by very different amounts. Ambient
-L4 keeps SATIA4 of the no-mesh throughput, the most of any mesh with workload
-mTLS. At the other end, Cilium sustains only SATCIECHO on the echo benchmark, and
-the Istio sidecar SATISECHO. On HR, the waypoint (SATIA7HR) and Linkerd (SATLKHR)
-keep more than the Istio sidecar (SATISHR) and Cilium (SATCIHR). Repeated
+L4 keeps 78--82\% of the no-mesh throughput, the most of any mesh with workload
+mTLS. At the other end, Cilium sustains only 22\% on the echo benchmark, and
+the Istio sidecar 30\%. On HR, the waypoint (69\%) and Linkerd (64\%)
+keep more than the Istio sidecar (52\%) and Cilium (48\%). Repeated
 searches of the same cell differ by up to about 10\%, so smaller differences,
 such as Linkerd against the Istio sidecar on OB, are not meaningful.
 
@@ -20,7 +20,7 @@ such as Linkerd against the Istio sidecar on OB, are not meaningful.
   \caption{Maximum SLO-compliant throughput (req/s) and fraction of the
            no-mesh baseline: median of the searches whose boundary was
            observed, with the range over all searches of the cell (1--3
-           searches, \cref{sec:load}).}
+           searches, \cref{sec:load}). CI4: not measured.}
   \label{tab:sat}
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -366,7 +366,7 @@ placement rather than infer it from node utilization.
     Need & Choose & Evidence \\
     \midrule
     Workload mTLS, L4 policy only & IA4 & lowest p99 increase among meshes with
-      workload mTLS (+54 to +62\%), SATIA4 of no-mesh throughput, least CPU;
+      workload mTLS (+54 to +62\%), 78--82\% of no-mesh throughput, least CPU;
       no L7 parsing (\cref{sec:rq2}) \\
     Node-to-node encryption suffices & CI4 & p99 +25\% (HR) and +55\% (OB),
       below IA4, but +128\% on echo; fewest extra cores; no workload identity,
@@ -454,7 +454,7 @@ placement, which favors node-level proxies.
 We compared seven service-mesh configurations on the same testbed, with open-loop
 load and the same absolute request rates for all of them. Among the meshes that
 authenticate workloads, Istio Ambient in L4 mode is the cheapest on every
-metric: it keeps SATIA4 of the no-mesh throughput and adds 54--62\% to p99 at
+metric: it keeps 78--82\% of the no-mesh throughput and adds 54--62\% to p99 at
 90\% load, while the L7 data planes add 144--1025\%. Cilium without L7 rules is
 cheaper still on the two microservice applications, at the price of node-level
 rather than workload-level security. Profiling shows where the difference comes

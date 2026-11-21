@@ -32,9 +32,9 @@ synthetic server with an artificial delay, without L7 processing, waypoints,
 energy, or a predictive model. Operators choosing a mesh today therefore lack a
 like-for-like comparison of the architectures they can actually deploy.
 
-This paper provides that comparison. We measure six configurations on the same
+This paper provides that comparison. We measure seven configurations on the same
 testbed: no mesh, Istio sidecar, Istio Ambient with and without a waypoint,
-Linkerd, and Cilium service mesh, each with east-west encryption enabled
+Linkerd, and Cilium service mesh with and without L7 policy, each with east-west encryption enabled
 in its default data path: workload-level mutual TLS for Istio and Linkerd,
 and node-to-node WireGuard for Cilium. We drive an echo
 microbenchmark and two widely used microservice benchmarks, Online
@@ -44,24 +44,27 @@ the coordinated-omission bias that hides tail latency~\cite{tene2015latency}.
 Our contributions are:
 
 \begin{itemize}
-  \item \textbf{A like-for-like measurement of six mesh configurations}
+  \item \textbf{A like-for-like measurement of seven mesh configurations}
         (RQ1). We report p99 and p99.9 latency, maximum SLO-compliant
         throughput, CPU, memory, and energy per request, with ten randomized
         repetitions per cell for latency and resources, three for energy, and
         non-parametric statistics. Sidecar-based
         Istio sustains only 30\% of the no-mesh throughput on the echo
-        benchmark, while ambient L4 mode retains 83\%.
+        benchmark, while ambient L4 mode retains 78\%.
   \item \textbf{An attribution of overhead beyond Envoy} (RQ2). Using perf and
         eBPF, we break the cost down into TLS, L7 parsing, socket I/O, context
         switches, and kernel time, including ztunnel, the Ambient waypoint,
         \texttt{linkerd2-proxy}, and Cilium's agent, per-node Envoy, and
-        WireGuard.
+        WireGuard. Ablations show that Cilium's cost comes from the L7
+        redirect and Hubble flow logging, not from its eBPF programs.
   \item \textbf{A model of the tail and its limits} (RQ3). A compositional
-        model, per-hop proxy cost plus a queueing term driven by the
-        utilization of the busiest node, predicts the p99 of an application
-        held out from fitting within 11\% for Ambient L4, and shows that for
-        L7 data planes the tail is set by the busiest node rather than by the
-        per-hop cost.
+        model of per-hop proxy cost, cross-node hops, and node utilization
+        predicts the p99 of an application held out from fitting within
+        11--13\% for the L4 data planes, and a bottleneck law predicts
+        throughput within 19\%. For L7 data planes the model fails, and a
+        placement experiment shows that relieving the busiest node does not
+        reduce the tail; queueing at the busiest proxy instance explains part
+        of it for per-pod sidecars, but not for shared proxies.
   \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy
         budgets to the mesh that satisfies them.
 \end{itemize}

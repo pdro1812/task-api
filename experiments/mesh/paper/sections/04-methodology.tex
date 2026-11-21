@@ -96,7 +96,7 @@ steps of 25\%, each held for 60\,s, until p99 latency exceeded the SLO
 requests failed or were dropped; the last passing rate was confirmed with one
 more step. After the main experiment, we refined each boundary with four
 bisection steps between the last passing and the first failing rate of that
-search (a resolution of about 1.5\% of the rate). In SATCENS of the 18 cells every
+search (a resolution of about 1.5\% of the rate). In 12 of the 18 cells every
 bisection step passed, so the bisection gave only a lower bound. For those
 cells we ran two more searches that start at the bisection's value and rise
 in 5\% steps until two consecutive steps fail, and record the highest passing
@@ -112,7 +112,8 @@ configurations (2382\,req/s for echo, 643 for OB, and 865 for HR). This yields
 714, 1429, and 2143\,req/s for echo, 192, 385, and 578\,req/s for OB, and 259,
 519, and 778\,req/s for HR. Throughout the paper, ``30/60/90\% load'' refers to
 these fixed rates. Measured against the lowest maximum throughput in
-\cref{tab:sat} (LOADFRAC), so even the highest level leaves every configuration some headroom.
+\cref{tab:sat}, they correspond to 22--26\%, 44--52\%, and 65--79\%, so even
+the highest level leaves every configuration some headroom.
 
 \subsection{Experiment design and metrics}
 \label{sec:design}

@@ -31,7 +31,8 @@ programs attached to the kernel datapath. Transparent encryption between nodes
 uses WireGuard (or IPsec), and L7 policy is enforced by redirecting the matching
 traffic to an Envoy instance shared by all pods on the node. Unlike the other
 meshes, Cilium encrypts at the node level rather than per workload, and only
-traffic subject to an L7 rule is sent through a proxy.
+traffic subject to an L7 rule is sent through a proxy. We measure Cilium both with an L7
+rule on every application port (CI) and without one (CI4).
 
 We compare each mesh's default data path for east-west encryption, not equal
 functionality: the configurations differ in what they authenticate, whether
@@ -54,7 +55,7 @@ memory but concentrate CPU on the node that hosts them, which, as we show in
            telemetry: L7 telemetry produced by default.}
   \label{tab:configs}
   \footnotesize
-  \setlength{\tabcolsep}{2.5pt}
+  \setlength{\tabcolsep}{2pt}
   \begin{tabular}{@{}llcccl@{}}
     \toprule
     ID  & Data plane             & mTLS & Same-node & L7 & Telemetry \\
@@ -64,7 +65,8 @@ memory but concentrate CPU on the node that hosts them, which, as we show in
     IA4 & ztunnel per node   & yes  & yes & --          & L4 only \\
     IA7 & ztunnel + waypoint & yes & yes & waypoint & Envoy \\
     LK  & Rust proxy per pod & yes & yes & per pod & proxy \\
-    CI  & eBPF, WG, Envoy per node & no$^{\dagger}$ & no & node & Hubble \\
+    CI  & eBPF, WG, Envoy per node & no$^{\dagger}$ & no & node & Hubble (L7) \\
+    CI4 & eBPF, WG                 & no$^{\dagger}$ & no & --   & Hubble (L4) \\
     \bottomrule
     \multicolumn{6}{@{}p{0.95\columnwidth}@{}}{\scriptsize $^{\dagger}$Nodes, not workloads, are
     authenticated (WireGuard, WG); Cilium's mutual authentication is not enabled.}

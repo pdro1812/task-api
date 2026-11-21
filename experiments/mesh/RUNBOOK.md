@@ -73,6 +73,16 @@ tail -f /mnt/dados/resultados/noturno.log                        # acompanhar; m
 - Análise: `analysis/.venv/bin/python analysis/10_agregar.py /mnt/dados/resultados/placement` (e `ci4`); CPU por nó:
   `analysis/12_node_util.py <dir>`.
 
+## Pendente (parado em 21/11 09:50 para desligar o PC)
+
+- `11-noturno.sh`: parado no meio da 2ª subida da CI (censuradas rep2 CI, echo e hotel); o marcador não foi gravado,
+  então essa configuração é refeita. Os resultados anteriores estão em `saturacao-rep/rep{1,2}`.
+- `12-saturacao-extra.sh`: não chegou a começar (saturação da CI4 e repetições das células com uma busca só).
+- Retomar (depois de `./00-host.sh` e `docker ps` vazio): `setsid nohup ./12-saturacao-extra.sh > /dev/null 2>&1 < /dev/null &`.
+  Ele começa pela CI4 e depois chama o `11-noturno.sh` (pula o que tem marcador .ok), que refaz a CI rep2 e faz as demais.
+- Depois: `analysis/13_saturacao.py /mnt/dados/resultados` (tab:sat), `analysis/41_modelo_x.py ...` (tab:model) e
+  conferir no texto os números de vazão (RQ1, metodologia "Load levels", guia, conclusão).
+
 ## Em execução agora (16/11)
 
 | Processo | Log | Acompanhar |
