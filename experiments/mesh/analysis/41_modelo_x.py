@@ -73,6 +73,33 @@ def px(cfg, app, pos, wp, hops):
     return p, x
 
 
+# Threads de trabalho de cada proxy (padrão das versões usadas): sidecar do Istio e waypoint 2 (limite de 2 CPUs),
+# ztunnel 2, linkerd2-proxy 1 (LINKERD2_PROXY_CORES=1), cilium-envoy sem --concurrency = 4 (vCPUs do nó)
+def threads_proxy(m):
+    ns, pod, cont = m.get("namespace", ""), m.get("pod", ""), m.get("container", "")
+    if ns == "istio-system" and pod.startswith("ztunnel"):
+        return 2
+    if pod.startswith("waypoint-"):
+        return 2
+    if cont == "istio-proxy":
+        return 2
+    if cont == "linkerd-proxy":
+        return 1
+    if ns == "kube-system" and pod.startswith("cilium-envoy"):
+        return 4
+    return None
+
+
+def rho_proxy_run(f):
+    """Maior utilização média de uma instância de proxy (CPU / threads) na rodada."""
+    melhor = 0.0
+    for s in json.load(open(f))["data"]["result"]:
+        t = threads_proxy(s["metric"])
+        if t and s["values"]:
+            melhor = max(melhor, statistics.mean(float(v) for _, v in s["values"]) / t)
+    return melhor
+
+
 def rho_runs(d):
     out = {}
     for m in glob.glob(os.path.join(d, "*", "*", "meta.json")):
@@ -83,12 +110,19 @@ def rho_runs(d):
     return out
 
 
+def rho_proxy_runs(d):
+    return {os.path.dirname(m): rho_proxy_run(os.path.join(os.path.dirname(m), "prom-cpu.json"))
+            for m in glob.glob(os.path.join(d, "*", "*", "meta.json"))
+            if os.path.exists(os.path.join(os.path.dirname(m), "prom-cpu.json"))}
+
+
 def celulas(cells_csv, d, origem):
     c = pd.read_csv(cells_csv)
     rho = rho_runs(d)
     c["dir"] = [os.path.join(d, (r.placement + "-" + r.config) if origem == "placement" else r.config,
                              f"{r.app}-{r.load}-{r.rep}") for r in c.itertuples()]
     c["rho"] = c.dir.map(rho)
+    c["rho_px"] = c.dir.map(rho_proxy_runs(d))
     if "placement" not in c:
         c["placement"] = "orig"
     if "waypoint_node_ob" not in c:
@@ -112,7 +146,8 @@ def main():
                    celulas(os.path.join(a.ci4, "cells.csv"), a.ci4, "ci4")])
     c = c[c.config.isin(["B"] + MESHES)]
     g = c.groupby(["origem", "config", "app", "placement", "waypoint_node_ob", "load"]).agg(
-        mean=("mean_ms", "median"), p99=("p99_ms", "median"), rho=("rho", "median"), rate=("rate", "first"),
+        mean=("mean_ms", "median"), p99=("p99_ms", "median"), rho=("rho", "median"), rho_px=("rho_px", "median"),
+        rate=("rate", "first"),
         n=("rep", "count")).reset_index()
     # referência B: a da mesma posição (fe-alone tem B própria; o resto usa a B da bateria principal)
     bb = g[(g.config == "B")].set_index(["app", "placement", "load"])
@@ -128,7 +163,11 @@ def main():
     g["X"] = [x for _, x in pxs]
     rc = g.rho.clip(upper=0.95)
     g["fila"] = rc / (1 - rc)
-    cols = ["P", "X", "fila"]
+    rp = g.rho_px.clip(upper=0.95)
+    g["fila_px"] = rp / (1 - rp)
+    # MODELO=proxy: fila do proxy mais ocupado em vez da do nó; MODELO=ambos: as duas
+    cols = {"no": ["P", "X", "fila"], "proxy": ["P", "X", "fila_px"],
+            "ambos": ["P", "X", "fila", "fila_px"]}[os.environ.get("MODELO", "no")]
     linhas, prev = [], []
     for m in MESHES:
         x = g[g.config == m]
@@ -144,7 +183,8 @@ def main():
                             f"err_hotel_{alvo}": np.nan, f"err_pos_{alvo}": np.nan})
                 continue
             coef, _ = nnls(tr[cols].values, tr[alvo].values)
-            lin.update({f"cp_{alvo}": 1000 * coef[0], f"cx_{alvo}": 1000 * coef[1], f"q_{alvo}": coef[2]})
+            lin.update({f"cp_{alvo}": 1000 * coef[0], f"cx_{alvo}": 1000 * coef[1], f"q_{alvo}": coef[2],
+                        f"qpx_{alvo}": coef[3] if len(coef) > 3 else np.nan})
             for nome, te in (("hotel", x[x.app == "hotel"]), ("pos", x[x.origem == "placement"])):
                 if te.empty:
                     lin[f"err_{nome}_{alvo}"] = np.nan
@@ -155,7 +195,18 @@ def main():
                 if alvo == "d_p99":
                     for r, p in zip(te.itertuples(), pred):
                         prev.append({"config": m, "app": r.app, "pos": r.placement, "wp": r.waypoint_node_ob,
-                                     "load": r.load, "P": r.P, "X": r.X, "rho": r.rho, "real": r.d_p99, "pred": p})
+                                     "load": r.load, "P": r.P, "X": r.X, "rho": r.rho, "rho_px": r.rho_px,
+                                     "real": r.d_p99, "pred": p})
+        # variante: fila do proxy mais ocupado (CPU da instância / threads) no lugar da do nó
+        cpx = ["P", "X", "fila_px"]
+        coef, _ = nnls(tr[cpx].values, tr["d_p99"].values)
+        for nome, te in (("hotel", x[x.app == "hotel"]), ("pos", x[x.origem == "placement"])):
+            if te.empty or m == "CI4":   # a CI4 não tem proxy
+                lin[f"errpx_{nome}"] = np.nan
+                continue
+            pred = te[cpx].values @ coef
+            lin[f"errpx_{nome}"] = float(np.median(np.abs(pred - te["d_p99"].values)
+                                                   / np.maximum(np.abs(te["d_p99"].values), 1e-6)))
         linhas.append(lin)
     res = pd.DataFrame(linhas)
     pd.set_option("display.width", 250)
@@ -170,16 +221,17 @@ def main():
     top["err"] = (top.xmax - top.sat) / top.sat
     print(top.round(3).to_string(index=False))
     with open(a.saida, "w") as f:
-        f.write("% generated by analysis/41_modelo_x.py\n\\begin{tabular}{lrrrrrr}\n\\toprule\n")
-        f.write("Config. & $c_p$ ($\\mu$s) & $c_x$ ($\\mu$s) & $q$ (ms) & err.\\ HR & err.\\ place. & "
-                "err.\\ $X_{\\max}$ \\\\\n\\midrule\n")
+        f.write("% generated by analysis/41_modelo_x.py\n\\begin{tabular}{lrrrrrrr}\n\\toprule\n")
+        f.write(" & & & & \\multicolumn{2}{c}{err.\\ HR} & \\multicolumn{2}{c}{err.\\ placement} \\\\\n")
+        f.write("Config. & $c_p$ ($\\mu$s) & $c_x$ ($\\mu$s) & err.\\ $X_{\\max}$ & node & proxy & node & proxy \\\\\n"
+                "\\midrule\n")
+        pct = lambda v: "--" if v is None or np.isnan(v) else f"{100 * v:.0f}\\%"
         for r in res.itertuples():
             # lei do gargalo: só OB e HR (no echo o gargalo é um processo, o relay, não o nó)
             e = top[(top.config == r.config) & (top.app != "echo")].err.abs()
             eb = "--" if e.dropna().empty else f"{100 * e.median():.0f}\\%"
-            ep = "--" if np.isnan(r.err_pos_d_p99) else f"{100 * r.err_pos_d_p99:.0f}\\%"
-            f.write(f"{r.config} & {r.cp_d_p99:.0f} & {r.cx_d_p99:.0f} & {r.q_d_p99:.1f} & "
-                    f"{100 * r.err_hotel_d_p99:.0f}\\% & {ep} & {eb} \\\\\n")
+            f.write(f"{r.config} & {r.cp_d_p99:.0f} & {r.cx_d_p99:.0f} & {eb} & {pct(r.err_hotel_d_p99)} & "
+                    f"{pct(r.errpx_hotel)} & {pct(r.err_pos_d_p99)} & {pct(r.errpx_pos)} \\\\\n")
         f.write("\\bottomrule\n\\end{tabular}\n")
     print(a.saida)
 

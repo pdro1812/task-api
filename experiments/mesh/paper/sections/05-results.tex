@@ -238,7 +238,11 @@ waypoint one more per call, plus up to two cross-node hops between client,
 waypoint, and server; Cilium's per-node Envoy one per call (none in CI4); and
 every mesh except CI4 one at the entry service. We fit by non-negative least
 squares on echo and OB and predict HR, which is held out, and the placement
-experiment below, which no fit has seen.
+experiment below, which no fit has seen. As a variant, we replace
+$\rho_{\text{hot}}$ with $\rho_{\text{proxy}}$, the utilization of the busiest
+proxy instance: its CPU divided by its worker threads (two for Istio sidecars,
+waypoints, and ztunnel; one for \texttt{linkerd2-proxy}; four, the node's
+vCPUs, for Cilium's Envoy).
 
 \paragraph{Results}
 \Cref{tab:model} shows the fitted costs and the prediction errors. The model
@@ -248,20 +252,26 @@ L4, with 120\,\textmu s per ztunnel traversal, and within 13\% for CI4, with
 work for the L7 data planes: errors on HR range from 82\% (Linkerd) to 140\%
 (Cilium), and for the Istio sidecar and the waypoint the fit assigns the whole
 overhead to the queueing term ($c_p = 0$). The cross-node term never helps
-($c_x = 0$) except for CI4. On HR, the model overpredicts the L7 meshes by
+($c_x = 0$) except for CI4. Queueing at the busiest proxy predicts better than
+queueing at the busiest node for the per-pod proxies, whose busiest instance is
+the frontend's: HR errors fall to 52\% for the Istio sidecar and 19\% for
+Linkerd, whose single-threaded proxy reaches 0.91 of its thread on OB at 90\%
+load. It does not help the shared proxies (86\% for IA7, 144\% for CI). On HR, the model overpredicts the L7 meshes by
 about 2$\times$: at 90\% load HR's busiest worker is 55--68\% utilized
 under the L7 meshes, close to OB's 53--76\%, yet HR's p99 increase is 2.6--5.2
 times smaller, so node utilization is not what sets their tail.
 
 \begin{table}[t]
   \centering
-  \caption{Model of the p99 increase (\cref{eq:model}), fitted on echo and OB.
-           Errors: median relative error on HR (held out), on the placement
-           cells (\cref{tab:placement}), and of the bottleneck law
-           $X_{\max} \approx \lambda/\rho_{\text{hot}}$ on OB and HR.}
+  \caption{Model of the p99 increase (\cref{eq:model}), fitted on echo and OB,
+           with the queueing term on the busiest node or on the busiest
+           proxy instance. Median relative errors on HR (held out), on the
+           placement cells (\cref{tab:placement}), and of the bottleneck law
+           $X_{\max} \approx \lambda/\rho_{\text{hot}}$ on OB and HR.
+           $c_p$, $c_x$: node variant.}
   \label{tab:model}
-  \small
-  \setlength{\tabcolsep}{3pt}
+  \footnotesize
+  \setlength{\tabcolsep}{2.5pt}
   \input{tables/modelo}
 \end{table}
 
@@ -281,13 +291,13 @@ fe-alone (106\,ms). Cross-node traversals change by at most 6\% between
 placements, so they do not explain these differences either. What placement
 does not change is the load on the single busiest proxy, which in every L7
 mesh handles most of OB's calls: the frontend's sidecar (1.1--1.3 cores with
-two worker threads under IS, 0.9 under Linkerd) and the OB waypoint (1.0--1.1
-cores in every placement). This is consistent with the tail being set by
-queueing in that proxy rather than on its node, but our data do not isolate
-it. The slowdown of wp-moved is not explained by either: its new node also
-receives all external traffic (the NodePort entry) and runs the most-called
-service, and we did not separate these effects. The model's placement errors
-(27\% for IA7, 40\% for IS) come mostly from these cells.
+two worker threads under IS, 0.9 with one under Linkerd) and the OB waypoint
+(1.0--1.1 cores in every placement). For IS this explains fe-alone better than
+the node does (placement error 22\% against 40\%), but it cannot explain
+wp-moved, where the waypoint's utilization is unchanged (0.52) and p99 nearly
+doubles. The waypoint's new node also receives all external traffic (the
+NodePort entry) and runs the most-called service; we did not separate these
+effects.
 
 \begin{table}[t]
   \centering
@@ -321,10 +331,10 @@ for all configurations but Ambient L4, because echo saturates in a single
 process, the Fortio relay, before its node does.
 
 We therefore read RQ3 as a partial answer. Per-traversal costs predict the
-overhead of L4 data planes, and node utilization predicts throughput, but the
-tail of L7 data planes is not predicted by per-hop costs, cross-node hops, or
-node utilization; the load on the busiest shared or fan-out proxy is the
-candidate our data point to.
+overhead of L4 data planes, and node utilization predicts throughput. For L7
+data planes, neither per-hop costs, cross-node hops, nor node utilization
+predict the tail; the utilization of the busiest proxy instance does better for
+per-pod sidecars, but not for shared proxies or for moving the waypoint.
 
 \section{RQ4: Which Mesh Should I Use?}
 \label{sec:rq4}
@@ -339,10 +349,11 @@ exception, energy per request on OB at 90\% load, is within 3\% of the
 waypoint). Cilium without L7 rules (CI4) is cheaper still on OB and HR, but it
 authenticates nodes, not workloads, and leaves same-node traffic unencrypted.
 Second, for L7 data planes, the tail is not predicted by per-hop cost or by
-node utilization (\cref{sec:rq3}): it follows the load on the single busiest
-proxy, the shared waypoint or the sidecar of a fan-out service, which moving
-pods between nodes did not reduce. Capacity planning for L7 meshes should
-therefore measure that proxy rather than the node.
+node utilization (\cref{sec:rq3}), and moving pods to relieve the busiest
+node did not reduce it. For per-pod sidecars, the load on the busiest proxy
+instance, the sidecar of the fan-out service, predicts it better. Capacity
+planning for L7 meshes should therefore measure the tail under the intended
+placement rather than infer it from node utilization.
 
 \begin{table}[t]
   \centering
@@ -362,8 +373,8 @@ therefore measure that proxy rather than the node.
       same-node traffic in clear \\
     L7 policy, deep call graphs & LK or IA7 & p99 on OB: +463\% (LK) and +483\%
       (IA7; not significantly different) vs.\ +1025\% (IS) \\
-    L7 on a high fan-out service & LK or IA7; test placement & the tail follows
-      the busiest proxy, not node: isolating the frontend did not lower IS's
+    L7 on a high fan-out service & LK or IA7; test placement & the tail does
+      not follow the busiest node: isolating the frontend did not lower IS's
       p99; moving the waypoint to the least-loaded node raised IA7's from 71 to
       125\,ms \\
     Smallest memory footprint & IA4 or LK & ztunnel 100\,MiB in total; Linkerd

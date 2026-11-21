@@ -36,7 +36,9 @@ on a pinned, virtualized Kubernetes testbed with open-loop load at three fixed r
 synthetic echo service, Online Boutique, and DeathStarBench Hotel Reservation. On Online Boutique at the middle
 rate, the Istio sidecar adds 52\,ms to p99 latency and ambient L4 6.7\,ms, and the meshes keep 2.0 (Cilium without
 L7) to 9.1 (Cilium with L7) more cores busy per 1000~req/s than no mesh; energy per request grows by 16 to
-188\% at the highest rate. Profiling attributes most of the overhead
+188\% at the highest rate. Among meshes that authenticate workloads, ambient L4 has the lowest latency,
+CPU, and memory and the highest throughput; Cilium without L7 policy is cheaper on two of the three applications but authenticates only nodes.
+Profiling attributes most of the overhead
 to HTTP/2 processing for the Istio sidecar, TLS for ambient L4, and, for Cilium, the redirect to its per-node
 Envoy and Hubble flow logging, not its eBPF programs (4--5\% of its data-plane CPU). A compositional model
 predicts the held-out application's p99 overhead within 11--13\% for the two L4 data planes, and a bottleneck law

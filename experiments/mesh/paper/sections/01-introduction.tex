@@ -62,9 +62,9 @@ Our contributions are:
         predicts the p99 of an application held out from fitting within
         11--13\% for the L4 data planes, and a bottleneck law predicts
         throughput within 19\%. For L7 data planes the model fails, and a
-        placement experiment shows why: relieving the busiest node did not
-        reduce the tail, which is consistent with queueing in the busiest
-        proxy instead.
+        placement experiment shows that relieving the busiest node does not
+        reduce the tail; queueing at the busiest proxy instance explains part
+        of it for per-pod sidecars, but not for shared proxies.
   \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy
         budgets to the mesh that satisfies them.
 \end{itemize}
