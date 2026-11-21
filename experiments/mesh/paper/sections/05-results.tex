@@ -17,19 +17,21 @@ Envoy) and Linkerd all fall to 47\%, below the Istio sidecar (54\%).
 \begin{table}[t]
   \centering
   \caption{Maximum SLO-compliant throughput (req/s) and fraction of the
-           no-mesh baseline.}
+           no-mesh baseline: the highest tested rate that met the SLO (single
+           search). $^{\ddagger}$Every bisection step passed; the next tested
+           rate, about 1.5\% higher, failed once in the initial search.}
   \label{tab:sat}
   \small
   \begin{tabular}{@{}lrrr@{}}
     \toprule
          & Echo & OB & HR \\
     \midrule
-    B    & 14012        & 1274       & 2287 \\
-    IA4  & 11688 (83\%) & 990 (78\%) & 1953 (85\%) \\
-    IA7  & 8208 (59\%)  & 953 (75\%) & 1067 (47\%) \\
-    LK   & 5253 (37\%)  & 793 (62\%) & 1068 (47\%) \\
-    IS   & 4202 (30\%)  & 793 (62\%) & 1233 (54\%) \\
-    CI   & 2939 (21\%)  & 915 (72\%) & 1067 (47\%) \\
+    B    & 14012$^{\ddagger}$        & 1274       & 2287$^{\ddagger}$ \\
+    IA4  & 11688 (83\%) & 990$^{\ddagger}$ (78\%) & 1953 (85\%) \\
+    IA7  & 8208$^{\ddagger}$ (59\%)  & 953 (75\%) & 1067$^{\ddagger}$ (47\%) \\
+    LK   & 5253$^{\ddagger}$ (37\%)  & 793$^{\ddagger}$ (62\%) & 1068$^{\ddagger}$ (47\%) \\
+    IS   & 4202$^{\ddagger}$ (30\%)  & 793$^{\ddagger}$ (62\%) & 1233 (54\%) \\
+    CI   & 2939$^{\ddagger}$ (21\%)  & 915 (72\%) & 1067$^{\ddagger}$ (47\%) \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -41,13 +43,18 @@ the least: +60\% on echo, +62\% on OB, and +54\% on HR. The Istio sidecar is
 the worst on OB, the application with the deepest call graph (11 internal calls
 per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
 +1025\% (11.9 to 133.7\,ms). Cilium is the worst on echo (+799\%), even though
-the echo chain has a single internal hop. Linkerd is consistently better than
-the Istio sidecar (+463\% vs.\ +1025\% on OB) although both place a proxy in
-every pod. The ranking is the same at 60\% load, except that IA7 and IS swap
+the echo chain has a single internal hop. Linkerd has a lower p99 than the
+Istio sidecar in 8 of the 9 cells (+463\% vs.\ +1025\% on OB at 90\% load;
+the exception is echo at 30\%, 2.51 vs.\ 2.46\,ms), although both place a
+proxy in every pod. The ranking is the same at 60\% load, except that IA7 and IS swap
 places on echo. The p99.9 follows it: at 90\% load the
 Istio sidecar multiplies the baseline p99.9 by 8.4 on OB and Linkerd by 5.4,
 while Ambient L4 stays within 1.2--1.6$\times$ on all three applications;
 Cilium reaches 6.8$\times$ on echo. The differences are not marginal.
+The ranking is also reproducible across deployments: in the second run used
+for energy (a fresh deployment of every configuration with KVM halt-polling
+disabled, 3 repetitions, 30\% and 90\% load), Kendall's $\tau$ between the two p99 rankings is 1.0 in 5 of the
+6 application and load cells and 0.87 on HR at 90\%.
 Kruskal--Wallis rejects equal p99 across configurations for every application
 and load (largest $p = 7.8\times10^{-10}$), all 45 mesh-versus-baseline
 comparisons remain significant after Holm correction within each application
@@ -58,7 +65,9 @@ repetition of the baseline.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{figs/p99_carga.pdf}
-  \caption{p99 latency vs.\ load level (median of 10 runs).}
+  \caption{p99 latency vs.\ load level (median of 10 runs). Load levels are
+           fixed rates, 30/60/90\% of the lowest initial saturation
+           estimate (\cref{sec:load}).}
   \label{fig:p99load}
 \end{figure}
 
@@ -76,7 +85,9 @@ repetition of the baseline.
 1{,}000\,req/s. At 90\% load, Ambient L4 adds the least CPU (+33\% to +61\%
 depending on the application), while Cilium adds the most (+93\% on OB and
 +306\% on echo). The Istio sidecar adds +215\% on echo and +116\% on HR.
-The dominant component differs by design: the per-pod proxies for the Istio
+On OB at 60\% load, the setting used in the abstract, the extra CPU over
+the baseline is 2.6 (IA4), 4.1 (IA7), 4.5 (LK), 6.7 (IS), and 7.0 (CI) cores
+per 1{,}000\,req/s. The dominant component differs by design (OB, 90\% load): the per-pod proxies for the Istio
 sidecar and Linkerd (on OB, 4.8 and 3.6 cores per 1{,}000\,req/s), ztunnel
 for Ambient L4 (2.1), ztunnel and the waypoint in similar shares for IA7 (1.3
 and 1.9), and, for Cilium, the agent and the per-node Envoy in equal parts (2.6
@@ -131,7 +142,8 @@ breaks this CPU down per request and \cref{tab:perfil} summarizes it.
 
 \paragraph{What each data plane spends}
 On OB, the baseline spends 0.64\,ms of CPU per request in its data plane (the
-Cilium agent and the CNI's eBPF programs). The Istio sidecar spends 5.5\,ms, of which 61\% is
+Cilium agent and the CNI's eBPF programs, which every configuration also
+runs; the increase of a mesh is its total minus this). The Istio sidecar spends 5.5\,ms, of which 61\% is
 HTTP/2 framing and header compression (\texttt{nghttp2}): with 11 internal
 calls per request, each crossing two sidecars, protocol processing dominates,
 as MeshInsight found for an older Envoy~\cite{zhu2023meshinsight}. Ambient L4
@@ -157,7 +169,8 @@ we cannot say which agent function consumes this time.
 
 \paragraph{Why the Istio sidecar is the slowest on OB}
 On OB, Cilium spends even more CPU per request than the sidecar (7.2 against
-5.5\,ms), yet its p99 is lower (77 against 134\,ms at 90\% load). The
+5.5\,ms; cAdvisor gives the same order, 7.0 against 6.7 extra cores per
+1{,}000\,req/s, \cref{sec:rq1}), yet its p99 is lower (77 against 134\,ms at 90\% load). The
 difference is where the work runs. The sidecar's cost follows the frontend,
 which issues most of the 11 internal calls through its own proxy, so it accumulates on
 the frontend's node: at 90\% load that worker is 76\% utilized with the
@@ -277,9 +290,12 @@ their placement should be part of capacity planning.
 
 \paragraph{Single host}
 All VMs share one host, memory bus, and last-level cache. We mitigate this by
-pinning every vCPU to a dedicated physical thread and by validating against
-MeshInsight (\cref{sec:validation}), but absolute numbers will differ on
-physical clusters.
+pinning every vCPU to a dedicated physical thread and by partially reproducing
+MeshInsight (\cref{sec:validation}: CPU overheads fall within the published
+range, latency overheads do not), but absolute numbers will differ on
+physical clusters. Relative results are stable across deployments: a second,
+independent deployment of every configuration reproduced the p99 ranking
+(\cref{sec:rq1}).
 
 \paragraph{Energy under virtualization}
 RAPL measures the whole package, including the hypervisor. In our main
@@ -310,7 +326,12 @@ CI, while every other mesh encrypts them. This favors CI on HR.
 
 \paragraph{Versions and defaults}
 Meshes evolve quickly; we pin versions and use default proxy settings, which
-may not match tuned production deployments.
+may not match tuned production deployments. Default proxy limits did not bind:
+the busiest sidecar stayed below its 2-CPU limit (\cref{sec:testbed}).
+Cilium shares one CNI configuration with the other meshes, with socket-level
+load balancing limited to the host namespace (required by Istio and Linkerd),
+and CI keeps Hubble and the Envoy access logs on, as by default; a Cilium-only
+deployment could avoid both, so CI may be at a disadvantage.
 
 \paragraph{Applications}
 Two benchmark applications and a microbenchmark cannot represent every call

@@ -33,6 +33,11 @@ traffic to an Envoy instance shared by all pods on the node. Unlike the other
 meshes, Cilium encrypts at the node level rather than per workload, and only
 traffic subject to an L7 rule is sent through a proxy.
 
+We compare each mesh's default data path for east-west encryption, not equal
+functionality: the configurations differ in what they authenticate, whether
+same-node traffic is encrypted, and how much L7 telemetry they produce
+(\cref{tab:configs}).
+
 \paragraph{Where the cost goes}
 These designs differ in three ways that matter for performance: the number of
 user-space proxies on the request path (two for sidecars, zero to two for
@@ -43,21 +48,25 @@ memory but concentrate CPU on the node that hosts them, which, as we show in
 
 \begin{table}[t]
   \centering
-  \caption{Configurations measured. All meshes run with mutual authentication
-           and encryption enabled.}
+  \caption{Configurations measured, each in its default data path. mTLS:
+           workload identity and mutual TLS; same-node: encryption of calls
+           between pods on the same node; L7: where HTTP/gRPC is processed;
+           telemetry: L7 telemetry produced by default.}
   \label{tab:configs}
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{@{}lll@{}}
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{@{}llcccl@{}}
     \toprule
-    ID  & Configuration            & Data plane on the path \\
+    ID  & Data plane             & mTLS & Same-node & L7 & Telemetry \\
     \midrule
-    B   & No mesh (Cilium CNI)     & none \\
-    IS  & Istio sidecar            & Envoy in every pod \\
-    IA4 & Istio Ambient, L4        & per-node ztunnel \\
-    IA7 & Istio Ambient + waypoint & ztunnel + per-namespace Envoy \\
-    LK  & Linkerd                  & \texttt{linkerd2-proxy} in every pod \\
-    CI  & Cilium service mesh      & eBPF, WireGuard, per-node Envoy \\
+    B   & none (Cilium CNI)  & --   & --  & --          & -- \\
+    IS  & Envoy per pod      & yes  & yes & per pod   & Envoy \\
+    IA4 & ztunnel per node   & yes  & yes & --          & L4 only \\
+    IA7 & ztunnel + waypoint & yes & yes & waypoint & Envoy \\
+    LK  & Rust proxy per pod & yes & yes & per pod & proxy \\
+    CI  & eBPF, WG, Envoy per node & no$^{\dagger}$ & no & node & Hubble \\
     \bottomrule
+    \multicolumn{6}{@{}p{0.95\columnwidth}@{}}{\scriptsize $^{\dagger}$Nodes, not workloads, are
+    authenticated (WireGuard, WG); Cilium's mutual authentication is not enabled.}
   \end{tabular}
 \end{table}

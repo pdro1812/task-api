@@ -28,14 +28,15 @@
 \maketitle
 
 \begin{abstract}
-Service meshes add mutual TLS, telemetry, and traffic policy to microservices, but each data-plane design pays for
+Service meshes add encryption, telemetry, and traffic policy to microservices, but each data-plane design pays for
 them differently: a proxy per pod (sidecar), a per-node L4 proxy with optional shared L7 waypoints (ambient), or
 in-kernel eBPF with a per-node proxy. We measure six configurations---no mesh, Istio sidecar, Istio ambient with and
-without waypoints, Linkerd, and Cilium with WireGuard and L7 policy---on a pinned, virtualized Kubernetes testbed with
-open-loop load at 30, 60, and 90\% of the lowest saturation throughput among the configurations, using a synthetic echo service, Online Boutique,
-and DeathStarBench Hotel Reservation. On Online Boutique at 60\% load, the Istio sidecar adds 52\,ms to p99 latency, while
-ambient L4 adds 6.7\,ms; per 1000~req/s the extra CPU ranges from 2.6 (ambient L4) to 7.0 (Cilium) cores, and
-energy per request grows by 16 to 188\% at 90\% load. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar (61\% of its data-plane
+without waypoints, Linkerd, and Cilium with WireGuard and L7 policy---each in its default data path, on a pinned,
+virtualized Kubernetes testbed with open-loop load at three fixed rates per application (about 24, 49, and 73\% of
+the lowest saturation throughput among the configurations), using a synthetic echo service, Online Boutique,
+and DeathStarBench Hotel Reservation. On Online Boutique at the middle rate, the Istio sidecar adds 52\,ms to p99
+latency, while ambient L4 adds 6.7\,ms, and the meshes need 2.6 (ambient L4) to 7.0 (Cilium) more cores per
+1000~req/s than no mesh; energy per request grows by 16 to 188\% at the highest rate. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar (61\% of its data-plane
 CPU), TLS for ambient L4 (47\%), and the per-node Envoy, agent, and WireGuard for Cilium. A compositional model built from per-hop proxy cost and a queueing term, fitted on two
 applications, predicts the third application's p99 overhead within 11\% for ambient L4, but not for L7 data planes, whose tail is set by the busiest node. We distill the results into
 a decision guide for choosing a data plane.
@@ -51,6 +52,12 @@ service mesh, Kubernetes, tail latency, performance evaluation, eBPF, energy eff
 \input{sections/03-related}
 \input{sections/04-methodology}
 \input{sections/05-results}
+
+% Anonymous for review: no names, grants, or affiliations.
+\section*{Acknowledgment}
+\todo[inline]{IEEE-required disclosure of the use of generative AI: name the
+system(s), the sections in which it was used, and the level of use. Final
+wording to be written by the authors.}
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
