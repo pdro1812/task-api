@@ -2,7 +2,7 @@
 # Experimentos complementares (revisão crítica de 20/11), encadeados como no 99-pipeline.sh: cada etapa grava um
 # marcador .ok e rodar de novo pula o que já terminou; para no primeiro erro.
 #   0. host: confere e registra o preparo (igual ao da bateria principal: 00-host.sh, halt-polling do KVM ligado no
-#      padrão, sem a stack talhao nem o kind tcc); para o que concorre com a medição
+#      padrão, sem outros contêineres no host); para o que concorre com a medição
 #   1. posicionamento do OB (10-placement.sh)                         -> <res>/placement
 #   2. CI4: Cilium só L4 (WireGuard, sem regra L7), 3 apps x 3 cargas x 5 rep.   -> <res>/ci4/CI4
 #   3. CINH (CI sem Hubble) e CINHA (sem Hubble nem log de acesso do Envoy), echo 60% e 90%, 3 rep. -> <res>/ci4/
@@ -43,8 +43,7 @@ host() {  # confere o preparo do 00-host.sh (não sobrevive a reboot) e para o q
   [ -r /sys/class/powercap/intel-rapl:0/energy_uj ] || { log "RAPL ilegível: rode ./00-host.sh"; return 1; }
   if [ -n "$(docker ps -q)" ]; then
     log "parando contêineres: $(docker ps --format '{{.Names}}' | paste -sd' ')"
-    docker compose -p talhao stop >/dev/null 2>&1 || true
-    docker stop tcc-control-plane tcc-worker tcc-worker2 >/dev/null 2>&1 || true
+    docker ps -q | xargs -r docker stop >/dev/null 2>&1 || true
     [ -z "$(docker ps -q)" ] || { log "ainda há contêineres rodando: $(docker ps --format '{{.Names}}' | paste -sd' ')"; return 1; }
   fi
   {
