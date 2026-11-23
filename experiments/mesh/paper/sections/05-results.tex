@@ -331,7 +331,7 @@ for all configurations but Ambient L4, because echo saturates in a single
 process, the Fortio relay, before its node does.
 
 We therefore read RQ3 as a partial answer. Per-traversal costs predict the
-overhead of L4 data planes, and node utilization predicts throughput. For L7
+overhead of L4 data planes, and node utilization predicts throughput on OB and HR. For L7
 data planes, neither per-hop costs, cross-node hops, nor node utilization
 predict the tail; the utilization of the busiest proxy instance does better for
 per-pod sidecars, but not for shared proxies or for moving the waypoint.
@@ -461,6 +461,6 @@ rather than workload-level security. Profiling shows where the difference comes
 from: HTTP/2 processing for the Istio sidecar, TLS for ztunnel, and, for Cilium,
 the redirect to the per-node Envoy and Hubble flow logging rather than eBPF.
 Per-hop costs predict the overhead of L4 data planes and node utilization
-predicts throughput, but neither predicts the tail of L7 data planes, which
+predicts the throughput of the microservice applications, but neither predicts the tail of L7 data planes, which
 moving pods off the busiest node did not reduce. We release the testbed and
 data so that these results can be reproduced and extended.

@@ -42,7 +42,7 @@ Profiling attributes most of the overhead
 to HTTP/2 processing for the Istio sidecar, TLS for ambient L4, and, for Cilium, the redirect to its per-node
 Envoy and Hubble flow logging, not its eBPF programs (4--5\% of its data-plane CPU). A compositional model
 predicts the held-out application's p99 overhead within 11--13\% for the two L4 data planes, and a bottleneck law
-predicts saturation throughput within 19\%; but neither per-hop costs, cross-node hops, nor node utilization
+predicts saturation throughput within 19\% on the two microservice applications; but neither per-hop costs, cross-node hops, nor node utilization
 predict the tail of L7 data planes, and moving pods to relieve the busiest node did not reduce it. We distill the
 results into a decision guide for choosing a data plane.
 \end{abstract}
