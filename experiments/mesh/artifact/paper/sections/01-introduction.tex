@@ -1,0 +1,83 @@
+% 01-introduction.tex
+\section{Introduction}
+\label{sec:intro}
+
+Service meshes have become the default way to add mutual TLS, fine-grained
+traffic policy, and request-level telemetry to microservices on Kubernetes,
+without changing application code. The price is paid on every request: traffic
+that used to flow directly between two pods now crosses one or more proxies,
+each of which terminates connections, encrypts and decrypts traffic, and often
+parses application-layer protocols. In deep call graphs, this cost is paid at
+every hop, and it shows up where operators care most: in the tail of the
+latency distribution and in the CPU that must be provisioned for it.
+
+The design space of service meshes has changed considerably in the last few
+years. The original \emph{sidecar} architecture, in which a proxy runs next to
+every application container (Istio with Envoy, Linkerd with its Rust
+\texttt{linkerd2-proxy}), now competes with \emph{sidecar-less} designs. Istio
+Ambient splits the data plane into a per-node L4 proxy (ztunnel) and optional,
+shared L7 proxies (waypoints), while Cilium implements L3/L4 functions in eBPF
+inside the kernel and delegates L7 processing to a per-node Envoy. Each design
+moves work to a different place (the pod, the node, or the kernel) and changes
+how many proxies a request traverses, so their costs cannot be inferred from
+one another.
+
+The most detailed study of mesh overheads to date, MeshInsight~\cite{zhu2023meshinsight},
+decomposed the cost of the Istio sidecar into its components and found that it
+can raise latency by up to 269\% and CPU usage by up to 163\%. That analysis,
+however, covers only the Envoy sidecar, uses closed-loop load, and its model
+explicitly does not predict tail latency. More recent comparisons of sidecar and
+sidecar-less meshes~\cite{bremlerbarr2024mtls} examine mTLS alone, on a
+synthetic server with an artificial delay, without L7 processing, waypoints,
+energy, or a predictive model. Operators choosing a mesh today therefore lack a
+like-for-like comparison of the architectures they can actually deploy.
+
+This paper provides that comparison. We measure seven configurations on the same
+testbed: no mesh, Istio sidecar, Istio Ambient with and without a waypoint,
+Linkerd, and Cilium service mesh with and without L7 policy, each with east-west encryption enabled
+in its default data path: workload-level mutual TLS for Istio and Linkerd,
+and node-to-node WireGuard for Cilium. We drive an echo
+microbenchmark and two widely used microservice benchmarks, Online
+Boutique~\cite{onlineboutique} and Hotel Reservation from
+DeathStarBench~\cite{gan2019deathstarbench}, with open-loop load, which avoids
+the coordinated-omission bias that hides tail latency~\cite{tene2015latency}.
+Our contributions are:
+
+\begin{itemize}
+  \item \textbf{A like-for-like measurement of seven mesh configurations}
+        (RQ1). We report p99 and p99.9 latency, maximum SLO-compliant
+        throughput, CPU, memory, and energy per request, with ten randomized
+        repetitions per cell for latency and resources (five for Cilium
+        without L7 policy), three for energy, and
+        non-parametric statistics. Sidecar-based
+        Istio sustains only 30\% of the no-mesh throughput on the echo
+        benchmark, while ambient L4 mode retains 78\%.
+  \item \textbf{An attribution of overhead beyond Envoy} (RQ2). Using perf and
+        eBPF, we break the cost down into TLS, L7 parsing, socket I/O, context
+        switches, and kernel time, including ztunnel, the Ambient waypoint,
+        \texttt{linkerd2-proxy}, and Cilium's agent, per-node Envoy, and
+        WireGuard. Ablations show that Cilium's cost comes from the L7
+        redirect and Hubble flow logging, not from its eBPF programs.
+  \item \textbf{A model of the tail and its limits} (RQ3). A compositional
+        model of per-hop proxy cost, cross-node hops, and node utilization
+        predicts the p99 of an application held out from fitting within
+        11--13\% for the L4 data planes, and a bottleneck law predicts
+        throughput within 19\% on the two microservice applications. For L7 data planes the model fails, and a
+        placement experiment shows that relieving the busiest node does not
+        reduce the tail; queueing at the busiest proxy instance explains part
+        of it for per-pod sidecars, but not for shared proxies.
+  \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy
+        budgets to the mesh that satisfies them.
+\end{itemize}
+
+We also partially reproduce MeshInsight: the CPU overhead of the Istio
+sidecar on Online Boutique falls within the published range, but its latency
+overhead is larger (\cref{sec:validation}). We release the testbed, scripts, and data to
+support reproduction at \anonrepo.
+
+The rest of the paper is organized as follows. \Cref{sec:background} describes
+the mesh architectures we compare, \cref{sec:related} discusses related work,
+\cref{sec:method} presents the testbed and methodology, and
+\cref{sec:rq1,sec:rq2,sec:rq3,sec:rq4} answer the four research questions.
+\Cref{sec:threats} discusses threats to validity and \cref{sec:conclusion}
+concludes.

@@ -1,0 +1,177 @@
+% 04-methodology.tex -- versions as recorded by the testbed scripts at run time.
+\section{Testbed and Methodology}
+\label{sec:method}
+
+\subsection{Testbed}
+\label{sec:testbed}
+
+All experiments run on a single dedicated host with an Intel Core i7-12700K
+(8 performance cores with two hardware threads each, plus 4 efficiency cores)
+and 64\,GB of RAM. To reduce measurement noise, we set the frequency governor
+to \texttt{performance}, disable turbo boost, and disable idle states deeper
+than C1, following MeshInsight~\cite{zhu2023meshinsight}.
+
+The cluster runs in four KVM virtual machines (Ubuntu 24.04, kernel
+6.8.0-149) managed with libvirt. Every vCPU is pinned to a dedicated
+physical thread of a performance core: the control-plane VM has 2 vCPUs and
+6\,GB, and each of the three worker VMs has 4 vCPUs and 14\,GB. QEMU emulator
+threads are pinned to a separate core pair, so no two VMs share a physical
+core. Kubernetes is k3s v1.37.2, with Cilium 1.20.3 as the CNI in
+every configuration, so that the baseline and the meshes share the same
+underlying network. We install Istio 1.32.0, Linkerd
+edge-26.11.1, and Cilium's service-mesh features from their upstream
+releases with default proxy settings; all versions are pinned in the
+artifact.
+
+\paragraph{Mesh configuration}
+Every mesh encrypts east-west traffic in its default data path
+(\cref{tab:configs}). For Istio (IS, IA4, IA7) we apply a mesh-wide
+\texttt{STRICT} \texttt{PeerAuthentication}, and for Linkerd a default policy
+that only admits authenticated mesh traffic, so both require workload-level
+mutual TLS. For Cilium we enable WireGuard encryption between nodes and a
+\texttt{CiliumNetworkPolicy} with L7 HTTP rules on the application ports,
+which activates the per-node Envoy; Cilium's workload-level mutual
+authentication is not enabled, so it authenticates nodes, not workloads, and
+does not encrypt same-node traffic. In IA7, each application namespace has its
+own waypoint. A seventh configuration, CI4, keeps Cilium's WireGuard
+encryption and applies the same policy with L4 rules only, so no traffic is
+sent to the per-node Envoy. Only the entry service of each application
+accepts plaintext traffic from the load generator.
+
+\paragraph{Cilium settings}
+The same Cilium installation serves as the CNI in all seven configurations. It
+runs with kube-proxy replacement enabled, so service load balancing is done by
+eBPF programs at each pod's network interface, but with socket-level load
+balancing limited to the host namespace, a setting that Istio and Linkerd
+require to see the original service address; pod traffic is carried between
+nodes in a VXLAN tunnel. Hubble, Cilium's flow observability, is on by
+default, and in CI the per-node Envoy sends its L7 access logs to it.
+
+\paragraph{Placement}
+Control-plane components (istiod, the Linkerd control plane, the Cilium
+operator, CoreDNS, and Prometheus) run on the control-plane VM, so they do not
+compete with the data plane. Application pods are assigned to the three workers
+round-robin with a fixed order, so every configuration uses the same placement,
+and each waypoint is pinned to a fixed worker. We remove the demonstration CPU
+and memory limits and the liveness probes shipped with the benchmark manifests,
+keeping requests and readiness probes: in a pilot, those limits throttled
+individual services and caused restarts that would have dominated the
+results. Mesh proxies keep their default resource settings. The busiest sidecar, the
+frontend's in IS on OB at 90\% load, used a median of 1.28 cores per run
+(peak 1.36 in a 5\,s sample), below its default limit of 2 CPUs and 2 worker
+threads.
+
+\paragraph{Applications}
+We use three workloads. \emph{Echo} is a two-service chain of Fortio
+servers (a relay forwarding each request to an echo server on another worker),
+which isolates the per-hop cost of the data plane. \emph{Online Boutique}
+(OB)~\cite{onlineboutique} has 11 services communicating over gRPC, with its
+built-in load generator removed. \emph{Hotel Reservation}
+(HR)~\cite{gan2019deathstarbench} has eight Go services that communicate over
+gRPC, a Consul registry, and six MongoDB and three memcached instances. The k6 scripts emulate user sessions: for OB, browsing the home
+page, viewing products, changing currency, and adding to the cart; for HR, 60\%
+hotel search, 39\% recommendations, 0.5\% logins, and 0.5\% reservations.
+
+\paragraph{Reproducible state}
+Each configuration is deployed from the same base snapshot of all four VMs,
+which contains the cluster and every container image already pulled, so no run
+downloads images and every configuration starts from an identical state.
+Automatic package updates are disabled inside the VMs.
+
+\subsection{Load generation}
+\label{sec:load}
+
+The load generator, k6~\cite{k6}, runs on the host, pinned to the four
+efficiency cores, which no VM uses. It issues requests at a constant arrival
+rate (open loop), so a slow response does not delay subsequent requests and
+tail latency is not hidden~\cite{tene2015latency}. At the highest rates we
+used, the generator's cores were about 53\% utilized, and we track dropped
+iterations to detect client saturation.
+
+\paragraph{Saturation}
+For each configuration and application, we first estimated the maximum
+SLO-compliant throughput before the main experiment, by increasing the rate in
+steps of 25\%, each held for 60\,s, until p99 latency exceeded the SLO
+(20\,ms for echo, 500\,ms for OB, 100\,ms for HR) or more than 1\% of
+requests failed or were dropped; the last passing rate was confirmed with one
+more step. After the main experiment, we refined each boundary with four
+bisection steps between the last passing and the first failing rate of that
+search (a resolution of about 1.5\% of the rate). In 12 of the 18 cells every
+bisection step passed, so the bisection gave only a lower bound. We therefore
+ran two more searches for every cell, which start at the bisection's value
+and rise in 5\% steps until two consecutive steps fail, and record the highest
+passing rate below them; CI4 had its own initial search, bisection, and two
+such searches. \Cref{tab:sat} reports, per cell, the median over the searches
+that observed a failing rate, with the range over all of them.
+
+\paragraph{Load levels}
+All configurations must be compared at the same absolute request rate, and a
+rate beyond a mesh's saturation would measure queue collapse rather than
+overhead. We therefore set three load levels per application at 30\%, 60\%,
+and 90\% of the \emph{lowest} initial saturation estimate among the six
+configurations (2382\,req/s for echo, 643 for OB, and 865 for HR). This yields
+714, 1429, and 2143\,req/s for echo, 192, 385, and 578\,req/s for OB, and 259,
+519, and 778\,req/s for HR. Throughout the paper, ``30/60/90\% load'' refers to
+these fixed rates. Measured against the lowest maximum throughput in
+\cref{tab:sat}, they correspond to 22--26\%, 44--52\%, and 65--79\%, so even
+the highest level leaves every configuration some headroom.
+
+\subsection{Experiment design and metrics}
+\label{sec:design}
+
+The main experiment crosses 6 configurations, 3 applications, and 3 load
+levels, with 10 repetitions per cell, for 540 runs. Latency and resource
+metrics come from these 10 repetitions; energy comes from 3 repetitions per
+cell of a second run (below). Three follow-up experiments ran later on the same
+testbed, host settings, and absolute rates: CI4 on all cells with 5
+repetitions (45 runs; no energy); a placement experiment on OB (\cref{sec:rq3},
+50 runs); and a Hubble ablation of CI on echo (\cref{sec:rq2}, 12 runs). Within each configuration,
+the order of runs is randomized with a fixed seed. Each run has 60\,s of
+warm-up, which is discarded, followed by 180\,s of measurement.
+
+We collect: (i) latency percentiles (p50, p90, p99, p99.9), error rate, and
+achieved throughput from k6; (ii) CPU and memory per container (application,
+sidecar, ztunnel, waypoint, Cilium agent and Envoy, control plane) from
+cAdvisor through Prometheus at a 5\,s interval; and (iii) package and core
+energy from RAPL on the host. We subtract the idle power of the no-mesh
+baseline from every configuration, so that each mesh's standing cost is
+included, and report joules per request together with each mesh's idle power
+above the baseline. Energy comes from a second run of the same cells (30\%
+and 90\% load, 3 repetitions) with KVM halt-polling disabled
+(\cref{sec:threats}); latency and resource results come from the main run.
+Without halt-polling, p99 stayed within 10\% of the main run in 25 of the 36
+cells; the baseline itself became 10--29\% faster, and the largest mesh changes
+were Ambient L4 on echo (+15 to +29\%) and the waypoint on HR at 90\% load
+($-$24\%), so overheads relative to the baseline are, if anything, conservative
+in the main run for most meshes. Resource
+costs are also
+normalized to millicores and MiB per 1{,}000\,req/s.
+
+For profiling (RQ2), we repeat each configuration at the 60\% load level and
+record call stacks with \texttt{perf} on the worker VMs and count context
+switches and system calls per request with eBPF (bpftrace). In a separate
+run, for CI and CI4, we read the run time of every eBPF program with
+\texttt{kernel.bpf\_stats\_enabled}, which adds its own overhead and is
+therefore off in all other runs.
+
+\paragraph{Statistics}
+We report medians across repetitions with 95\% bootstrap confidence intervals.
+We test for differences among configurations with the Kruskal--Wallis test and
+compare each mesh with the baseline using the Mann--Whitney U test with Holm
+correction, reporting Cliff's $\delta$ as the effect size. The coefficient of
+variation of p99 across repetitions measures the predictability of each mesh.
+
+\subsection{Partial Reproduction of MeshInsight}
+\label{sec:validation}
+
+To check how far a single-host testbed reproduces published behavior, we repeated
+MeshInsight's comparison of the Istio sidecar against no mesh on Online
+Boutique, with five repetitions per configuration. At 275\,req/s, the sidecar
+increased cluster CPU usage by 129\%, within the published range of
+42--163\%~\cite{zhu2023meshinsight}. Latency increased by 416\% (p50) and 440\%
+(p99), above the published 27--269\%, so the reproduction is partial: CPU
+reproduces, latency does not. At 551\,req/s the latency increase grew
+further (p50 +1482\%), while CPU rose by 80\%. Possible causes are a newer
+Istio and Envoy and open-loop load; the frontend's sidecar, which carries 10
+of OB's 11 internal calls per request, is the most loaded proxy in our runs
+(\cref{sec:rq2,sec:rq3}), but we did not isolate the cause.

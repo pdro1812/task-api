@@ -1,2 +1,9 @@
 node_modules/
 experiments/results/
+experiments/mesh/.state
+experiments/mesh/analysis/.venv
+__pycache__/
+experiments/mesh/artifact/.state
+experiments/mesh/artifact/results
+experiments/mesh/artifact/analysis/.venv
+experiments/mesh/artifact/paper/main.pdf

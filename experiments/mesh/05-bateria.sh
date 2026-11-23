@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Bateria principal: para cada configuração (em ordem aleatória), prepara o cluster com 03-config.sh, mede a
+# potência ociosa e roda as células app x carga x repetição em ordem aleatória. Retoma de onde parou: uma rodada
+# com meta.json já gravado é pulada. A semente fica no diretório da bateria, então a ordem é reproduzível.
+# Uso: ./05-bateria.sh [diretório]   Variáveis: CONFIGS="B IS IA4 IA7 LK CI"  REPS=10  LOADS="30 60 90"  APPS="echo ob hotel"
+source "$(dirname "$0")/lib/common.sh"
+source "$MESH_DIR/lib/measure.sh"
+CONFIGS=${CONFIGS:-"B IS IA4 IA7 LK CI"}
+REPS=${REPS:-10}
+LOADS=${LOADS:-"30 60 90"}
+APPS=${APPS:-"echo ob hotel"}
+# Base das cargas: a menor saturação da app entre as 6 configurações (mesma taxa absoluta para todas, e todas a
+# sustentam). Sempre sobre as 6, mesmo rodando só algumas, para que as taxas não mudem entre sessões.
+for app in $APPS; do
+  v=$(sat_min "$app" B IS IA4 IA7 LK CI) || exit 1
+  printf -v "SAT_$app" '%s' "$v"
+  var="SAT_$app"; echo "$app: base das cargas ${!var} req/s (menor saturação entre as configurações)"
+done
+DIR=${1:-$RESULTS_ROOT/bateria-$(date +%Y%m%d-%H%M)}
+mkdir -p "$DIR"
+
+# Espaço: o k6-reqs.csv.gz domina (medido: 36-51 B por requisição, ~8 KB por req/s numa rodada de 180 s).
+# Recusa começar se a projeção das rodadas pendentes passar de 80% do espaço livre no destino.
+KB_POR_RPS=${KB_POR_RPS:-8}
+proj_kb=0
+for cfg in $CONFIGS; do for app in $APPS; do for load in $LOADS; do for rep in $(seq 1 "$REPS"); do
+  [ -f "$DIR/$cfg/$app-$load-$rep/meta.json" ] && continue
+  var="SAT_$app"; proj_kb=$(( proj_kb + ${!var} * load / 100 * KB_POR_RPS * ${DURATION%s} / 180 + 500 ))
+done; done; done; done
+livre_kb=$(df -Pk "$DIR" | awk 'NR == 2 {print $4}')
+echo "projeção de disco: $((proj_kb / 1024)) MB para as rodadas pendentes; livre em $DIR: $((livre_kb / 1024)) MB"
+[ "$proj_kb" -le $(( livre_kb * 8 / 10 )) ] || die "a bateria passaria de 80% do espaço livre em $DIR: escolha outro destino"
+[ -f "$DIR/seed" ] || echo $RANDOM > "$DIR/seed"
+SEED=$(cat "$DIR/seed")
+cp "$STATE/versoes-instaladas.txt" "$STATE/saturacao.env" "$DIR/" 2>/dev/null || true
+shuffle() { shuf --random-source=<(yes "$SEED$1"); }
+
+for cfg in $(echo "$CONFIGS" | tr ' ' '\n' | shuffle cfg); do
+  cells=()
+  for app in $APPS; do for load in $LOADS; do for rep in $(seq 1 "$REPS"); do
+    [ -f "$DIR/$cfg/$app-$load-$rep/meta.json" ] || cells+=("$app $load $rep")
+  done; done; done
+  [ ${#cells[@]} -eq 0 ] && { echo "$cfg: completa"; continue; }
+  step "$cfg: ${#cells[@]} rodadas pendentes"
+  "$MESH_DIR/03-config.sh" "$cfg" > "$DIR/$cfg-config.log" 2>&1 || die "03-config.sh $cfg falhou (ver $DIR/$cfg-config.log)"
+  mkdir -p "$DIR/$cfg"
+  kubectl get pods -A -o wide > "$DIR/$cfg/pods.txt"
+  idle_power "$DIR/$cfg/idle.json"
+  i=0
+  while read -r app load rep; do
+    i=$((i + 1))
+    var="SAT_$app"; rate=$(( ${!var} * load / 100 ))
+    # os qcow2 das VMs crescem a cada configuração: pausa (retomável) se o disco do estado ou dos resultados apertar
+    for d in "$STATE" "$DIR"; do
+      livre=$(df -Pk "$d" | awk 'NR == 2 {print $4}')
+      [ "$livre" -ge $(( ${MIN_LIVRE_GB:-3} * 1024 * 1024 )) ] || \
+        die "menos de ${MIN_LIVRE_GB:-3} GB livres em $d: bateria pausada; libere espaço e rode de novo com o mesmo diretório"
+    done
+    # REQUER_HP0=1 (05b-energia.sh): só mede com o halt-polling do KVM desligado
+    if [ -n "${REQUER_HP0:-}" ] && [ "$(cat /sys/module/kvm/parameters/halt_poll_ns)" != 0 ]; then
+      die "halt_poll_ns não é 0: rode 'echo 0 | sudo tee /sys/module/kvm/parameters/halt_poll_ns' e retome"
+    fi
+    echo "[$(date +%H:%M)] $cfg $i/${#cells[@]}: $app carga $load% ($rate req/s) rodada $rep"
+    run_cell "$cfg" "$app" "$load" "$rate" "$rep" "$DIR/$cfg/$app-$load-$rep"
+  done < <(printf '%s\n' "${cells[@]}" | shuffle "$cfg")
+done
+step "bateria concluída: $DIR"

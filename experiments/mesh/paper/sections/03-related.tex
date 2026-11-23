@@ -1,0 +1,62 @@
+% 03-related.tex
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Component-level analysis of sidecars}
+MeshInsight~\cite{zhu2023meshinsight} is the work closest in method to ours.
+It profiles the Istio sidecar (Istio 1.13, Envoy 1.21) on Online Boutique and
+Hotel Reservation and attributes its overhead to seven components, finding that
+protocol parsing dominates. It reports latency increases of 27--269\% and CPU
+increases of 42--163\%, depending on configuration, and proposes a linear
+compositional model of overhead. The authors note that the model does not
+predict tail latency, and that extending the analysis to other meshes is future
+work. We extend the analysis to ztunnel, the Ambient waypoint,
+\texttt{linkerd2-proxy}, and Cilium's eBPF datapath, use open-loop load, add
+energy, and test which factors predict the tail.
+
+\paragraph{Comparisons of sidecar and sidecar-less meshes}
+Bremler-Barr et al.~\cite{bremlerbarr2024mtls} compare Istio sidecar, Istio
+Ambient (ztunnel only), Linkerd, and Cilium, focusing on the cost of mTLS. Their
+workload is a synthetic server with a fixed 200\,ms delay driven by Fortio, and
+they do not exercise L7 processing, waypoints, or realistic call graphs. They
+also observe that Cilium does not encrypt traffic between pods on the same node,
+a caveat that applies to our setup as well: under our placement, 2.8 of the
+3.8 internal calls per Hotel Reservation request, and 0.6 of the 11 per Online
+Boutique request, stay on one node and are therefore not encrypted by Cilium's
+WireGuard. Vendor benchmarks~\cite{istio2025ambientperf} compare the
+encrypted single-connection TCP throughput of ztunnel, Linkerd, and Cilium with
+iperf3, without L7 processing, multi-service applications, or tail latency.
+Our study uses multi-service
+applications, includes the waypoint, and reports energy and a predictive model.
+
+\paragraph{Reducing mesh overhead}
+A separate line of work proposes new data-plane designs rather than measuring
+existing ones. Meshlib~\cite{mostafaei2026meshlib} builds on Cilium and enforces
+L7 policy inside the application process through an optional library, falling
+back to Cilium's per-node Envoy for unmodified services; on TrainTicket, a
+single node and up to 200\,req/s, it reports lower latency than Istio, Linkerd,
+and unmodified Cilium, and attributes most of the cost of L7 proxying to
+protocol parsing. Cvetkovi\'c and Klimovic~\cite{cvetkovic2025lightweight}
+characterize Istio and Linkerd sidecars on Knative and report 38.3$\times$
+higher p95 execution time with Istio policies and up to 3.9$\times$ higher p95
+CPU per worker; they could not evaluate Ambient, which Knative does not
+support. Neither evaluates Istio Ambient or energy. Canal Mesh~\cite{song2024canal}
+moves L7 processing out of the cluster into a centralized, multi-tenant
+gateway and reports 12.3$\times$ the throughput of the Istio sidecar and
+2.3$\times$ that of an early Ambient release; it does not evaluate Linkerd or
+Cilium. Our measurements are complementary: they quantify the cost these
+designs aim to remove, on the architectures in production today.
+
+\paragraph{Microservice benchmarks and load generation}
+We use Online Boutique~\cite{onlineboutique} and Hotel Reservation from
+DeathStarBench~\cite{gan2019deathstarbench}, the same applications as
+MeshInsight, so that results can be compared directly. We generate open-loop
+load with k6~\cite{k6} at a constant arrival rate, avoiding the
+coordinated-omission problem of closed-loop generators, which underestimates
+tail latency~\cite{tene2015latency}. Energy is measured with Intel
+RAPL~\cite{khan2018rapl}.
+Container-level energy estimators for Kubernetes such as Kepler have been
+found inaccurate~\cite{pijnacker2025kepler}, and per-task RAPL attribution on
+shared nodes must fall back to approximations from CPU
+utilization~\cite{thamm2025rapl}; we therefore report package-level energy per
+request for the whole host rather than per container.
