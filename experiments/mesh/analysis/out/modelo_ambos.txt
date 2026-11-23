@@ -54,4 +54,3 @@ config   app  load   rho  rate      xmax     sat     min     max   n  n_censurad
     LK  echo    90 0.246  2143  8698.096  5725.5  5253.0  5865.0 3.0          1.0              0.0   0.384  0.519
     LK hotel    90 0.552   778  1408.620  1518.0  1068.0  1518.0 2.0          1.0              0.0   0.640 -0.072
     LK    ob    90 0.706   578   818.394   734.0   715.0   793.0 3.0          1.0              0.0   0.576  0.115
-/tmp/claude-1000/-home-pedro-k8s/450c6c6a-675d-4162-9fd7-9076370fe7dd/scratchpad/m_ambos.tex
