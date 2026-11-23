@@ -97,10 +97,11 @@ requests failed or were dropped; the last passing rate was confirmed with one
 more step. After the main experiment, we refined each boundary with four
 bisection steps between the last passing and the first failing rate of that
 search (a resolution of about 1.5\% of the rate). In 12 of the 18 cells every
-bisection step passed, so the bisection gave only a lower bound. For those
-cells we ran two more searches that start at the bisection's value and rise
-in 5\% steps until two consecutive steps fail, and record the highest passing
-rate below them. \Cref{tab:sat} reports, per cell, the median over the searches
+bisection step passed, so the bisection gave only a lower bound. We therefore
+ran two more searches for every cell, which start at the bisection's value
+and rise in 5\% steps until two consecutive steps fail, and record the highest
+passing rate below them; CI4 had its own initial search, bisection, and two
+such searches. \Cref{tab:sat} reports, per cell, the median over the searches
 that observed a failing rate, with the range over all of them.
 
 \paragraph{Load levels}

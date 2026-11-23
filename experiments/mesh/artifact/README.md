@@ -140,4 +140,4 @@ included for size; `05-bateria.sh` regenerates them, and `analysis/10_agregar.py
 
 `13_saturacao.py` expects the results layout of the scripts (`<res>/saturacao-fina/`, `<res>/saturacao-rep/rep<N>/`,
 `<res>/ci4/saturacao/`); with the artifact data:
-`mkdir -p r/saturacao-rep && ln -s ../data/saturation r/saturacao-fina && ln -s ../../data/saturation/rep1 ../../data/saturation/rep2 r/saturacao-rep/ && analysis/.venv/bin/python analysis/13_saturacao.py r`.
+`mkdir -p r/saturacao-rep && ln -s ../data/saturation r/saturacao-fina && ln -s ../../data/saturation/rep1 ../../data/saturation/rep2 r/saturacao-rep/ && mkdir -p r/ci4 && ln -s ../../data/saturation/ci4 r/ci4/saturacao && analysis/.venv/bin/python analysis/13_saturacao.py r`.

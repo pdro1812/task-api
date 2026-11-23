@@ -11,7 +11,8 @@ within the SLO. Every mesh reduces it, but by very different amounts. Ambient
 L4 keeps 78--82\% of the no-mesh throughput, the most of any mesh with workload
 mTLS. At the other end, Cilium sustains only 22\% on the echo benchmark, and
 the Istio sidecar 30\%. On HR, the waypoint (69\%) and Linkerd (64\%)
-keep more than the Istio sidecar (52\%) and Cilium (48\%). Repeated
+keep more than the Istio sidecar (52\%) and Cilium (49\%). Cilium without L7
+rules keeps 82--87\%, more than Ambient L4 on every application. Repeated
 searches of the same cell differ by up to about 10\%, so smaller differences,
 such as Linkerd against the Istio sidecar on OB, are not meaningful.
 
@@ -19,8 +20,8 @@ such as Linkerd against the Istio sidecar on OB, are not meaningful.
   \centering
   \caption{Maximum SLO-compliant throughput (req/s) and fraction of the
            no-mesh baseline: median of the searches whose boundary was
-           observed, with the range over all searches of the cell (1--3
-           searches, \cref{sec:load}). CI4: not measured.}
+           observed, with the range over all searches of the cell (2--3
+           searches, \cref{sec:load}).}
   \label{tab:sat}
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -32,9 +33,9 @@ such as Linkerd against the Istio sidecar on OB, are not meaningful.
 medians with significance against the baseline. At 90\% load, among the
 meshes that authenticate workloads, Ambient L4 adds the least: +60\% on echo,
 +62\% on OB, and +54\% on HR. Cilium without L7 rules (CI4, 5 runs per cell)
-adds less on OB (+55\%) and HR (+25\%), where most calls stay cheap without
-a proxy, but more on echo (+128\%), where WireGuard on the single cross-node
-hop is its whole cost. The Istio sidecar is
+adds less on HR (+25\%), about the same on OB (+55\%; not significantly
+different from Ambient L4 at 30\% and 90\% load), and more on echo (+128\%),
+where WireGuard on the single cross-node hop is its whole cost. The Istio sidecar is
 the worst on OB, the application with the deepest call graph (11 internal calls
 per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
 +1025\% (11.9 to 133.7\,ms). Cilium is the worst on echo (+799\%), even though
@@ -326,9 +327,9 @@ effects.
 A simpler bottleneck law predicts saturation well: dividing the 90\% rate by
 the busiest worker's utilization, $X_{\max} \approx \lambda/\rho_{\text{hot}}$,
 matches the measured maximum throughput (\cref{tab:sat}) on OB and HR within
-19\% for every configuration (median 7\%). It overestimates echo by 37--53\%
-for all configurations but Ambient L4, because echo saturates in a single
-process, the Fortio relay, before its node does.
+19\% for every configuration (median 6\%). It overestimates echo by 37--53\%
+for all configurations but the two L4 data planes (6\% and 15\%), because
+echo saturates in a single process, the Fortio relay, before its node does.
 
 We therefore read RQ3 as a partial answer. Per-traversal costs predict the
 overhead of L4 data planes, and node utilization predicts throughput on OB and HR. For L7
@@ -346,8 +347,9 @@ cut across it. First, the cheapest mesh is the one that does the least per
 request. Among the meshes that authenticate workloads, Ambient L4 avoids L7
 parsing entirely and is the cheapest on every metric we measured (the one
 exception, energy per request on OB at 90\% load, is within 3\% of the
-waypoint). Cilium without L7 rules (CI4) is cheaper still on OB and HR, but it
-authenticates nodes, not workloads, and leaves same-node traffic unencrypted.
+waypoint). Cilium without L7 rules (CI4) is cheaper still in CPU and throughput,
+and in p99 on HR, but it authenticates nodes, not workloads, and leaves
+same-node traffic unencrypted.
 Second, for L7 data planes, the tail is not predicted by per-hop cost or by
 node utilization (\cref{sec:rq3}), and moving pods to relieve the busiest
 node did not reduce it. For per-pod sidecars, the load on the busiest proxy
@@ -368,9 +370,9 @@ placement rather than infer it from node utilization.
     Workload mTLS, L4 policy only & IA4 & lowest p99 increase among meshes with
       workload mTLS (+54 to +62\%), 78--82\% of no-mesh throughput, least CPU;
       no L7 parsing (\cref{sec:rq2}) \\
-    Node-to-node encryption suffices & CI4 & p99 +25\% (HR) and +55\% (OB),
-      below IA4, but +128\% on echo; fewest extra cores; no workload identity,
-      same-node traffic in clear \\
+    Node-to-node encryption suffices & CI4 & p99 +25\% (HR, below IA4), +55\%
+      (OB, like IA4), +128\% (echo); 82--87\% of no-mesh throughput; fewest
+      extra cores; no workload identity, same-node traffic in clear \\
     L7 policy, deep call graphs & LK or IA7 & p99 on OB: +463\% (LK) and +483\%
       (IA7; not significantly different) vs.\ +1025\% (IS) \\
     L7 on a high fan-out service & LK or IA7; test placement & the tail does
@@ -455,9 +457,10 @@ We compared seven service-mesh configurations on the same testbed, with open-loo
 load and the same absolute request rates for all of them. Among the meshes that
 authenticate workloads, Istio Ambient in L4 mode is the cheapest on every
 metric: it keeps 78--82\% of the no-mesh throughput and adds 54--62\% to p99 at
-90\% load, while the L7 data planes add 144--1025\%. Cilium without L7 rules is
-cheaper still on the two microservice applications, at the price of node-level
-rather than workload-level security. Profiling shows where the difference comes
+90\% load, while the L7 data planes add 144--1025\%. Cilium without L7 rules uses
+less CPU and sustains more throughput still, with a lower or similar tail on the
+two microservice applications, at the price of node-level rather than
+workload-level security. Profiling shows where the difference comes
 from: HTTP/2 processing for the Istio sidecar, TLS for ztunnel, and, for Cilium,
 the redirect to the per-node Envoy and Hubble flow logging rather than eBPF.
 Per-hop costs predict the overhead of L4 data planes and node utilization
