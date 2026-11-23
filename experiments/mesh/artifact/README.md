@@ -3,7 +3,7 @@
 This package contains everything needed to rebuild the testbed, rerun the experiments, and regenerate every table
 and figure of the paper from the aggregated results included here.
 
-Six data-plane configurations are compared on the same cluster:
+Seven data-plane configurations are compared on the same cluster (CI4 was added in a follow-up run):
 
 | ID | Configuration |
 | --- | --- |
@@ -13,6 +13,10 @@ Six data-plane configurations are compared on the same cluster:
 | IA7 | Istio Ambient with one waypoint per namespace (L7) |
 | LK | Linkerd (`linkerd2-proxy` per pod, `all-authenticated`) |
 | CI | Cilium service mesh (WireGuard between nodes, L7 policy through the per-node Envoy) |
+| CI4 | Cilium with WireGuard between nodes and the same policy with L4 rules only (no Envoy on the path) |
+
+Two further variants are used only in the Hubble ablation: CINH (CI with Hubble disabled) and CINHA (also without
+Envoy access logs).
 
 Workloads: an echo chain (two Fortio servers), Online Boutique, and DeathStarBench Hotel Reservation, driven by k6
 in open loop.
@@ -23,7 +27,7 @@ in open loop.
 
 | Path | Content |
 | --- | --- |
-| `00-host.sh` … `09-saltos.sh`, `99-pipeline.sh` | experiment scripts (order below) |
+| `00-host.sh` … `12-saturacao-extra.sh`, `99-pipeline.sh` | experiment scripts (order below) |
 | `lib/` | shared shell functions: VM snapshots, application deployment, mesh installation, measurement |
 | `k6/` | load scripts (one per application) |
 | `versions.env` | pinned versions (empty = latest stable at install time; actual versions in `data/installed-versions.txt`) |
@@ -63,7 +67,18 @@ echo 0 | sudo tee /sys/module/kvm/parameters/halt_poll_ns
 ./09-saltos.sh results/hops.json                           # call graph per application from Istio telemetry (RQ3)
 ```
 
-`./03-config.sh <B|IS|IA4|IA7|LK|CI>` prepares a single configuration (restores the snapshot, installs the mesh,
+Follow-up experiments (same host settings and rates; `11-noturno.sh` chains them, resumable):
+
+```bash
+./10-placement.sh results/placement                        # OB placement experiment: fe-alone (B, IS, IA7), wp-moved and orig (IA7), 5 reps
+CONFIGS=CI4 REPS=5 ./05-bateria.sh results/ci4             # CI4 on all cells, 5 reps
+CONFIGS="CINH CINHA" APPS=echo LOADS="60 90" REPS=3 ./05-bateria.sh results/ci4   # Hubble ablation
+BPF_STATS=1 CONFIGS="CI CI4" ./06-perfil.sh results/ci4/perfil-bpf               # eBPF program run time
+SUBIR=1 SATF_BASE=<saturacao.env> ./04-saturacao.sh        # upward saturation search until two consecutive failures
+./12-saturacao-extra.sh                                    # CI4 saturation and the remaining repeated searches
+```
+
+`./03-config.sh <B|IS|IA4|IA7|LK|CI|CI4|CINH|CINHA>` prepares a single configuration (restores the snapshot, installs the mesh,
 deploys the three applications and runs a smoke test). `99-pipeline.sh` chains the analysis steps after a run.
 
 Analysis environment:
@@ -77,12 +92,16 @@ cd analysis && python3 -m venv .venv && .venv/bin/pip install -r requirements.tx
 | Paper element | Produced by | Input in `data/` |
 | --- | --- | --- |
 | Table I (configurations), Table VII (decision guide) | written by hand | — |
-| Table II (max throughput) | `04-saturacao.sh` with `REFINAR=1` | `saturation/saturacao.env` (`SATF_<app>_<cfg>`) |
-| Table III (p99 latency) | `analysis/20_estatistica.py` | `main-cells.csv` |
-| Fig. 1 (p99 vs load), Fig. 2 (CPU and memory per component) | `analysis/30_figuras.py` | `main-cells.csv` |
+| Table II (max throughput) | `analysis/13_saturacao.py` | `saturation/` (bisection `SATF_`, upward searches `SATR_` in `rep1/`, `rep2/`) |
+| Table III (p99 latency) and p50/p99.9 | `analysis/20_estatistica.py` | `main-cells.csv` plus the CI4 rows of `ci4-cells.csv` |
+| Fig. 1 (p99 vs load, bootstrap bands), Fig. 2 (CPU and memory per component) | `analysis/30_figuras.py --figs p99,recursos` | same combined cells |
 | Table IV (energy per request) | `analysis/60_energia.py` | `main-cells-summary.csv`, `energy-hp0-cells.csv` |
 | Fig. 3 and Table V (profiling) | `analysis/50_perfil.py` | raw profiles (not included); summary in `profiling.csv` |
-| Table VI (model) | `analysis/40_modelo.py` | `main-cells-summary.csv`, `hops.json` |
+| Model table | `analysis/41_modelo_x.py` | main, placement and CI4 run directories, `hops.json`, saturation table |
+| Placement table | by hand from `placement-cells.csv` and `placement-node-util.csv` | — |
+| Per-node CPU utilization | `analysis/12_node_util.py` | `*-node-util.csv` |
+| Hubble ablation, eBPF program run time (RQ2 text) | `ci4-cells.csv`; `bpf-stats/` (`bpftool prog show -j` before/after) | — |
+| Pairwise comparisons in the decision guide | `analysis/20_estatistica.py` | `main-ci4-pairwise.csv` |
 | Statistics in the text (Kruskal–Wallis, Mann–Whitney with Holm, Cliff's δ, CV) | `analysis/20_estatistica.py` | `main-statistics.csv` |
 
 Examples, from the artifact root:
@@ -108,8 +127,17 @@ $P analysis/60_energia.py data/main-cells-summary.csv data/energy-hp0-cells.csv 
 | `energy-hp0-cells.csv`, `energy-comparison.csv` | energy run with KVM halt-polling disabled, and its comparison with the main run |
 | `hops.json` | internal calls per external request, per edge, same-node vs cross-node |
 | `profiling.csv` | data-plane CPU per request by category, context switches and syscalls per request |
-| `saturation/` | saturation searches (step logs and final values) |
+| `saturation/` | saturation searches (step logs and final values): initial and bisection, `rep1/` and `rep2/` upward searches |
+| `ci4-cells.csv`, `ci4-node-util.csv` | CI4 (45 runs) and Hubble ablation (CINH, CINHA; 12 runs) |
+| `placement-cells.csv`, `placement-node-util.csv` | OB placement experiment (50 runs) |
+| `main-node-util.csv` | per-node CPU utilization of the main run |
+| `main-ci4-statistics.csv`, `main-ci4-pairwise.csv` | statistics with CI4 included; pairwise Mann–Whitney (Holm) between meshes |
+| `bpf-stats/` | `bpftool` dumps with `kernel.bpf_stats_enabled` for CI and CI4 (echo, OB at 60%) |
 | `installed-versions.txt`, `images.txt` | versions recorded at install time and the digests of the preloaded images |
 
 The raw per-run files (`k6-reqs.csv.gz` with every request, Prometheus series, RAPL readings; about 4 GB) are not
 included for size; `05-bateria.sh` regenerates them, and `analysis/10_agregar.py` turns them into `main-cells.csv`.
+
+`13_saturacao.py` expects the results layout of the scripts (`<res>/saturacao-fina/`, `<res>/saturacao-rep/rep<N>/`,
+`<res>/ci4/saturacao/`); with the artifact data:
+`mkdir -p r/saturacao-rep && ln -s ../data/saturation r/saturacao-fina && ln -s ../../data/saturation/rep1 ../../data/saturation/rep2 r/saturacao-rep/ && analysis/.venv/bin/python analysis/13_saturacao.py r`.

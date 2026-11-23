@@ -47,7 +47,8 @@ Our contributions are:
   \item \textbf{A like-for-like measurement of seven mesh configurations}
         (RQ1). We report p99 and p99.9 latency, maximum SLO-compliant
         throughput, CPU, memory, and energy per request, with ten randomized
-        repetitions per cell for latency and resources, three for energy, and
+        repetitions per cell for latency and resources (five for Cilium
+        without L7 policy), three for energy, and
         non-parametric statistics. Sidecar-based
         Istio sustains only 30\% of the no-mesh throughput on the echo
         benchmark, while ambient L4 mode retains 78\%.
