@@ -38,13 +38,15 @@ meshes that authenticate workloads, Ambient L4 adds the least: +60\% on echo,
 adds less on HR (+25\%), about the same on OB (+55\%; not significantly
 different from Ambient L4 at 30\% and 90\% load), and more on echo in this
 run (+128\%), where WireGuard on the single cross-node hop is its whole cost.
+A same-day control of B, IA4, CI4, and IS on OB and HR (3 runs each, a week
+after the main run) confirms the OB and HR comparisons: CI4 and IA4 have the
+same p99 on OB (22.1 against 22.1\,ms at 90\% load), and on HR every CI4 run
+was faster than every IA4 run (10.8 against 13.2\,ms).
 CI4's echo p99 varies between days more than any other measurement, however:
 a control run on a later day, together with CI, gave 1.7--1.8\,ms instead of
 2.8--3.0\,ms
 (\cref{sec:threats}), so its comparison with Ambient L4 on echo is
-inconclusive. In both runs it falls slightly with load, as if the fixed
-per-packet cost were amortized over more packets per interrupt, which we did
-not verify. The Istio sidecar is
+inconclusive. The Istio sidecar is
 the worst on OB, the application with the deepest call graph (11 internal calls
 per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
 +1025\% (11.9 to 133.7\,ms). CI is the worst on echo (+799\%), even though
@@ -104,7 +106,8 @@ container, such as WireGuard's encryption in softirq context: CI4's container
 CPU is within 7\% of the baseline's at 90\% load and within 13\% at any load. Counting all busy CPU in the four VMs
 instead, at the same setting the meshes add 2.0 (CI4), 3.0 (IA4), 4.6 (IA7),
 5.2 (LK), 7.5 (IS), and 9.1 (CI) cores per 1{,}000\,req/s, in the same order
-as container CPU for the other meshes. Per-request CPU falls with load in every
+as container CPU for the other meshes; in the same-day control, CI4 adds 2.0
+and IA4 2.5. Per-request CPU falls with load in every
 configuration, most for the L7 proxies (IS's sidecars on OB: 8.1, 6.7, and 4.8
 cores per 1{,}000\,req/s at 30, 60, and 90\% load), consistent with more
 requests handled per wakeup as queues build; at 90\% load the application
@@ -318,8 +321,9 @@ the changes are only partly consistent with a node-level explanation. Under
 fe-alone, IA7's busiest worker rose from 51\% to 72\% and its p99 from 71 to
 106\,ms, as that explanation predicts. But isolating the frontend lowered
 IS's busiest worker from 76\% to 60\% at 90\% load with little change in
-p99 (134 to 128\,ms; the IS reference is the main run, while the same-day
-baseline reproduced the main run's 11.9\,ms), and moving the waypoint to the
+p99 (134 to 128\,ms against the main run); a same-day control a week later
+confirms it, with the busiest worker going from 82\% to 60\% and p99 falling
+by only 8\% (211 to 195\,ms; 10\% at 60\% load), and moving the waypoint to the
 least-loaded worker nearly doubled IA7's p99 (71 to 125\,ms) with a small
 change in node load (51\% to 58\%). Cross-node traversals change by at most 6\% between
 placements, so they do not explain these differences either. What placement
@@ -336,7 +340,8 @@ effects.
 \begin{table}[t]
   \centering
   \caption{OB placement experiment (5 runs per cell; same-day control for
-           IA7). p99 in ms at the 60\% and 90\% rates; $\rho_{\text{hot}}$:
+           IA7; 3 runs for the IS pair from the same-day control a week
+           later). p99 in ms at the 60\% and 90\% rates; $\rho_{\text{hot}}$:
            busiest worker at 90\%; $X$: cross-node traversals per request,
            including the entry hop.}
   \label{tab:placement}
@@ -350,6 +355,8 @@ effects.
     B   & fe-alone                 & 9.6  & 11.9  & .44 & 12.0 \\
     IS  & original (main run)      & 61.7 & 133.7 & .76 & 11.4 \\
     IS  & fe-alone                 & 59.8 & 128.4 & .60 & 12.0 \\
+    IS  & original (later day)     & 95.1 & 211.3 & .82 & 11.4 \\
+    IS  & fe-alone (later day)     & 85.2 & 194.9 & .60 & 12.0 \\
     IA7 & original (control)       & 36.7 & 70.5  & .51 & 17.6 \\
     IA7 & fe-alone                 & 49.4 & 106.3 & .72 & 16.6 \\
     IA7 & wp-moved                 & 51.4 & 124.7 & .58 & 18.0 \\
@@ -387,8 +394,8 @@ HR, but it authenticates nodes, not workloads, and leaves same-node traffic
 unencrypted.
 Second, for L7 data planes, the tail is not predicted by per-hop cost or by
 node utilization (\cref{sec:rq3}); in the one case where moving pods
-relieved the busiest node (IS), p99 did not fall (4\% lower, against the main
-run on an earlier day). For per-pod sidecars, the load on the busiest proxy
+relieved the busiest node (IS, from 82\% to 60\% in a same-day control), p99
+fell by only 8--10\%. For per-pod sidecars, the load on the busiest proxy
 instance, the sidecar of the fan-out service, predicts it better. Capacity
 planning for L7 meshes should therefore measure the tail under the intended
 placement rather than infer it from node utilization.
@@ -413,8 +420,8 @@ placement rather than infer it from node utilization.
       (IA7; not significantly different) vs.\ +1025\% (IS); on HR, LK +144\%,
       IA7 +273\% (not different from IS, +286\%) \\
     L7 on a high fan-out service & LK or IA7; test placement & node load
-      explains the tail only partly: isolating the frontend changed IS's p99 by
-      4\%; moving the waypoint to the least-loaded node raised IA7's from 71 to
+      explains the tail only partly: isolating the frontend lowered IS's p99 by
+      8--10\% (same day) while its node went from 82\% to 60\%; moving the waypoint to the least-loaded node raised IA7's from 71 to
       125\,ms \\
     Smallest memory footprint & IA4 or LK & ztunnel 100\,MiB in total; Linkerd
       7\,MiB per pod vs.\ 57\,MiB for Istio sidecars \\
@@ -473,8 +480,11 @@ controls bound the effect of the day: IA7 on OB in the original placement
 reproduced the main run within 2\% at 90\% load (12\% faster at 60\%), and
 the baseline on OB in the fe-alone placement within 2\%, but CI on echo was
 24--31\% slower than in the main run and CI4 on echo differed by up to 41\%
-between the two days. Comparisons of CI4 and of fe-alone with the main run are
-therefore cross-day. We therefore compare the
+between the two days. A third control, a week after the main run, repeated B,
+IA4, CI4, and IS on OB and HR and IS with fe-alone on the same day: the
+baseline was 5--19\% slower than in the main run and IS on OB up to 58\%
+slower, so absolute values move between days more than rankings do, and the
+CI4 and placement comparisons we state hold within that day. We therefore compare the
 Cilium ablations only within a day and treat cross-day differences on echo of
 that size as inconclusive. We did not measure CI4's energy, and placement was
 varied only for OB.
@@ -512,6 +522,5 @@ predicts the throughput of the microservice applications, but neither predicts
 the tail of L7 data planes. The utilization of the busiest proxy instance
 predicts it better for per-pod sidecars (held-out error 19\% for Linkerd and
 52\% for the Istio sidecar, against 82\% and 135\% with node utilization), and
-relieving the busiest node did not reduce the sidecar's tail (4\% lower,
-against an earlier day's run). We release the testbed and
+relieving the busiest node lowered the sidecar's tail by only 8--10\%. We release the testbed and
 data so that these results can be reproduced and extended.
