@@ -9,11 +9,11 @@ architecture determines how many proxies a request crosses and where their work
 is executed. \Cref{tab:configs} summarizes the configurations we study.
 
 \paragraph{Per-pod sidecars}
-In Istio's sidecar mode, an Envoy proxy is injected into every pod, and
+In the sidecar mode of Istio~\cite{istio}, an Envoy~\cite{envoy} proxy is injected into every pod, and
 iptables rules redirect all inbound and outbound traffic through it. A request
 between two services therefore traverses two proxies, each of which terminates
 TCP, performs mTLS, and parses HTTP or gRPC to apply L7 policy and collect
-telemetry. Linkerd uses the same pattern with \texttt{linkerd2-proxy}, a
+telemetry. Linkerd~\cite{linkerd} uses the same pattern with \texttt{linkerd2-proxy}, a
 purpose-built proxy written in Rust that implements a smaller feature set.
 
 \paragraph{Istio Ambient}
@@ -26,9 +26,9 @@ a service account. Ambient therefore has two operating points, L4-only (IA4)
 and L4 plus waypoint (IA7), which we measure separately.
 
 \paragraph{Cilium service mesh}
-Cilium implements networking, load balancing, and L3/L4 policy with eBPF
+Cilium~\cite{cilium} implements networking, load balancing, and L3/L4 policy with eBPF
 programs attached to the kernel datapath. Transparent encryption between nodes
-uses WireGuard (or IPsec), and L7 policy is enforced by redirecting the matching
+uses WireGuard~\cite{donenfeld2017wireguard} (or IPsec), and L7 policy is enforced by redirecting the matching
 traffic to an Envoy instance shared by all pods on the node. Unlike the other
 meshes, Cilium encrypts at the node level rather than per workload, and only
 traffic subject to an L7 rule is sent through a proxy. We measure Cilium both with an L7

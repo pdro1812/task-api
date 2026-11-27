@@ -62,7 +62,7 @@ frontend's in IS on OB at 90\% load, used a median of 1.28 cores per run
 threads.
 
 \paragraph{Applications}
-We use three workloads. \emph{Echo} is a two-service chain of Fortio
+We use three workloads. \emph{Echo} is a two-service chain of Fortio~\cite{fortio}
 servers (a relay forwarding each request to an echo server on another worker),
 which isolates the per-hop cost of the data plane. \emph{Online Boutique}
 (OB)~\cite{onlineboutique} has 11 services communicating over gRPC, with its
@@ -150,16 +150,17 @@ normalized to millicores and MiB per 1{,}000\,req/s.
 
 For profiling (RQ2), we repeat each configuration at the 60\% load level and
 record call stacks with \texttt{perf} on the worker VMs and count context
-switches and system calls per request with eBPF (bpftrace). In a separate
+switches and system calls per request with eBPF (bpftrace~\cite{bpftrace}). In a separate
 run, for CI and CI4, we read the run time of every eBPF program with
 \texttt{kernel.bpf\_stats\_enabled}, which adds its own overhead and is
 therefore off in all other runs.
 
 \paragraph{Statistics}
-We report medians across repetitions with 95\% bootstrap confidence intervals.
-We test for differences among configurations with the Kruskal--Wallis test and
-compare each mesh with the baseline using the Mann--Whitney U test with Holm
-correction, reporting Cliff's $\delta$ as the effect size. The coefficient of
+We report medians across repetitions with 95\% bootstrap confidence
+intervals~\cite{efron1979bootstrap}.
+We test for differences among configurations with the Kruskal--Wallis test~\cite{kruskal1952ranks} and
+compare each mesh with the baseline using the Mann--Whitney U test~\cite{mann1947test} with Holm
+correction~\cite{holm1979simple}, reporting Cliff's $\delta$~\cite{cliff1993dominance} as the effect size. The coefficient of
 variation of p99 across repetitions measures the predictability of each mesh.
 
 \subsection{Partial Reproduction of MeshInsight}
