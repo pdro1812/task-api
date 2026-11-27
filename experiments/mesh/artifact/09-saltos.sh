@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Mede o grafo de chamadas de cada aplicação (para o modelo do RQ3): na IS, carga de 30% da base da bateria por
 # 3 min e leitura dos contadores dos sidecars (istio_requests_total e istio_tcp_connections_opened_total, lado
 # cliente) antes e depois. Por requisição externa: chamadas internas HTTP/gRPC (H) e conexões TCP a bancos, cada
 # aresta marcada como "mesmo nó" ou "entre nós" pela posição fixa dos pods (igual em todas as configurações).
-# Uso: ./09-saltos.sh [saída.json]   Padrão: $MESH_DIR/results/hops.json. Deixa o cluster na B no fim.
+# Uso: ./09-saltos.sh [saída.json]   Padrão: /mnt/dados/resultados/hops.json. Deixa o cluster na B no fim.
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
-OUT=${1:-${RESULTS:-$MESH_DIR/results}/hops.json}
+OUT=${1:-/mnt/dados/resultados/hops.json}
 TMP="$STATE/saltos"; rm -rf "$TMP"; mkdir -p "$TMP"
 [ "$(cat "$STATE/config-atual" 2>/dev/null)" = IS ] || "$MESH_DIR/03-config.sh" IS > "$TMP/IS-config.log" 2>&1 \
   || die "03-config.sh IS falhou"

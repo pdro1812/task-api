@@ -26,7 +26,7 @@ such as Linkerd against the Istio sidecar on OB, are not meaningful.
            searches, \cref{sec:load}).}
   \label{tab:sat}
   \footnotesize
-  \setlength{\tabcolsep}{3pt}
+  \setlength{\tabcolsep}{1.5pt}
   \input{tables/saturacao}
 \end{table}
 
@@ -47,7 +47,7 @@ a control run on a later day, together with CI, gave 1.7--1.8\,ms instead of
 2.8--3.0\,ms
 (\cref{sec:threats}), so its comparison with Ambient L4 on echo is
 inconclusive. The Istio sidecar is
-the worst on OB, the application with the deepest call graph (11 internal calls
+the worst on OB, the application with the largest fan-out (11 internal gRPC calls
 per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
 +1025\% (11.9 to 133.7\,ms). CI is the worst on echo (+799\%), even though
 the echo chain has a single internal hop. Linkerd has a lower p99 than the
@@ -94,7 +94,9 @@ whose overhead is mostly a fixed per-request cost.
 \end{table*}
 
 \paragraph{CPU and memory}
-\Cref{fig:resources} breaks CPU down by component, normalized per
+\Cref{fig:resources} breaks CPU down by component (percentages below count
+the application and data-plane containers, without the control plane and
+monitoring), normalized per
 1{,}000\,req/s. At 90\% load, among meshes with workload mTLS, Ambient L4 adds
 the least CPU (+33\% to +61\% depending on the application), while CI adds the
 most on echo and OB (+93\% on OB and
@@ -106,21 +108,19 @@ container, such as WireGuard's encryption in softirq context: CI4's container
 CPU is within 7\% of the baseline's at 90\% load and within 13\% at any load. Counting all busy CPU in the four VMs
 instead, at the same setting the meshes add 2.0 (CI4), 3.0 (IA4), 4.6 (IA7),
 5.2 (LK), 7.5 (IS), and 9.1 (CI) cores per 1{,}000\,req/s, in the same order
-as container CPU for the other meshes; in the same-day control, CI4 adds 2.0
-and IA4 2.5. Per-request CPU falls with load in every
-configuration, most for the L7 proxies (IS's sidecars on OB: 8.1, 6.7, and 4.8
-cores per 1{,}000\,req/s at 30, 60, and 90\% load), consistent with more
-requests handled per wakeup as queues build; at 90\% load the application
-containers under IS and IA7 also use less CPU per request than in the baseline
-(3.8 and 4.2 against 5.0), which we have not explained. Relative CPU overheads
-are therefore smaller at 90\% than at 60\% load. The dominant component differs by design (OB, 90\% load): the per-pod proxies for the Istio
+as container CPU (same-day control: CI4 2.0, IA4 2.5). Per-request CPU falls with load in every
+configuration, most for the L7 proxies (IS on OB: 8.1, 6.7, 4.8 cores per
+1{,}000\,req/s at 30/60/90\%), consistent with more requests per wakeup as
+queues build; at 90\% the application containers under IS and IA7 also use
+less CPU per request than in the baseline (3.8 and 4.2 against 5.0), which we
+have not explained. The dominant component differs by design (OB, 90\% load): the per-pod proxies for the Istio
 sidecar and Linkerd (on OB, 4.8 and 3.6 cores per 1{,}000\,req/s), ztunnel
 for Ambient L4 (2.1), ztunnel and the waypoint in similar shares for IA7 (1.3
 and 1.9), and, for Cilium, the agent and the per-node Envoy in equal parts (2.6
 and 3.1). Memory is mostly a fixed cost: the Istio sidecars hold 1.8\,GiB
 across the 32 application pods (about 57\,MiB each), against 0.21\,GiB for
 Linkerd's proxies (about 7\,MiB each); ztunnel uses about 100\,MiB in total and
-the three waypoints 375\,MiB. On the control-plane node, istiod uses 85\,MiB
+the three waypoints 375\,MiB. On the control-plane node, istiod uses about 90\,MiB
 with sidecars and 155\,MiB in ambient mode, and Linkerd's control plane
 140\,MiB. With Istio sidecars, Prometheus also holds about 0.9\,GiB more,
 because it scrapes the metrics of every sidecar; we count it as monitoring,
@@ -157,10 +157,8 @@ above the baseline's 21.0\,W, the sidecar paying for one idle proxy per pod. We 
 \end{table}
 
 \paragraph{Variability}
-Results are stable across repetitions: the coefficient of variation of p99
-never exceeds 0.22 (Linkerd on OB at 90\% load). Five of the 540 runs, all on
-HR, had error rates between 0.13\% and 0.38\%, and one dropped 37 requests;
-all are below the 1\% threshold and are kept.
+The coefficient of variation of p99 never exceeds 0.22 (LK on OB at 90\%).
+Five HR runs had 0.13--0.38\% errors, below the 1\% threshold, and are kept.
 
 \section{RQ2: Where Does the Cost Come From?}
 \label{sec:rq2}
@@ -194,13 +192,13 @@ baseline and 1.6$\times$ the Istio sidecar, although the request crosses a
 single internal hop. Every request is redirected to the per-node Envoy by the
 L7 rule on both nodes, is encrypted by WireGuard (14\% of the total), and makes
 the Cilium agent spend almost as much CPU as Envoy itself (36\,s against 39\,s
-over the profiling window). It also has the most context switches per request
-(27, against 12 for the sidecar). We could not resolve the agent's symbols, so
+over the profiling window). We could not resolve the agent's symbols, so
 we located the agent's cost with ablations, run together with a same-day
 control of CI (echo, 3 runs each). With Hubble, Cilium's flow observability,
 disabled, the agent's CPU at 90\% load falls from 0.96 to 0.36 cores and p99
 from 14.4 to 6.7\,ms (8.2 to 4.7\,ms at 60\%): Hubble accounts for 43--54\%
-of CI's p99, and every run without it was faster than every run with it. Also
+of CI's p99, and every run without it was faster than every run with it
+(3 runs each, reported descriptively). Also
 disabling Envoy's access log changes neither. Removing the L7 rule while
 keeping WireGuard (CI4) brings p99 down to 1.7\,ms on the same day. The eBPF programs themselves are cheap: with
 \texttt{kernel.bpf\_stats\_enabled}, all of Cilium's programs together run
@@ -258,7 +256,9 @@ cross-node traversals on the mesh's path, $\rho_{\text{hot}}$ the measured CPU
 utilization of the busiest worker, and $c_p$, $c_x$, and $q$ are fitted per
 mesh. $P$ and $X$ come from the call graph measured with Istio telemetry and
 from the pod placement: echo makes 1 internal call per request (across
-nodes), OB 11 (10.4 across nodes), and HR 3.8 (1.0 across nodes). A sidecar
+nodes), OB 11 (10.4 across nodes), and HR 3.8 (1.0 across nodes); these are
+gRPC calls, as pooled connections to MongoDB, memcached, and redis are not
+counted, which underestimates $P$ and $X$ for HR. A sidecar
 mesh adds two traversals per call; ztunnel one per node the call touches; the
 waypoint one more per call, plus up to two cross-node hops between client,
 waypoint, and server; Cilium's node Envoy one per call, at the destination's
@@ -289,7 +289,10 @@ term does not help the shared proxies (86\% for IA7, 144\% for CI), and with
 node utilization the L7 errors range from 82\% (Linkerd) to 140\% (CI); for
 the Istio sidecar and the waypoint that fit assigns the whole overhead to the
 queueing term ($c_p = 0$). The cross-node term never helps ($c_x = 0$) except
-for CI4. With node utilization, the model overpredicts the L7 meshes on HR by
+for CI4; with two training applications, $P$ and $X$ take only two distinct
+values per mesh, so $c_p$ and $c_x$ are not separately identifiable, and we
+read the fit as a test of which factors explain the tail rather than as a
+calibrated model. With node utilization, the model overpredicts the L7 meshes on HR by
 about 2$\times$: at 90\% load HR's busiest worker is 55--68\% utilized
 under the L7 meshes, close to OB's 53--76\%, yet HR's p99 increase is 2.6--5.2
 times smaller, so node utilization is not what sets their tail.
@@ -383,7 +386,8 @@ per-pod sidecars, but not for shared proxies or for moving the waypoint.
 
 \Cref{tab:guide} condenses our results into a decision guide; pairwise
 comparisons cited there are significant (Mann--Whitney, Holm-corrected within
-each application and load, $p<0.05$) unless stated otherwise. Two observations
+each application and load, $p<0.05$) unless stated otherwise; same-day
+controls (3 runs) are descriptive. Two observations
 cut across it. First, the cheapest mesh is the one that does the least per
 request. Among the meshes that authenticate workloads, Ambient L4 avoids L7
 parsing entirely and is the cheapest on every metric we measured (the one
@@ -458,16 +462,13 @@ against in-guest busy cores predicts, so in-guest CPU is only an approximate
 proxy for host power.
 
 \paragraph{Ordering}
-Runs are randomized within each configuration, but configurations ran in
-blocks. An interleaved control experiment (B and IS alternated in blocks, with
-halt-polling enabled) reproduced the power difference observed in the main run
-at the same temperatures, which makes time of day and temperature unlikely
-causes; the smaller residual reported under Energy under virtualization persists
-with halt-polling disabled.
+Configurations ran in blocks. An interleaved B/IS control reproduced the
+main run's power difference at the same temperatures, making time of day and
+temperature unlikely causes.
 
 \paragraph{Encryption scope}
 Cilium's WireGuard encrypts only traffic between nodes, so the same-node calls
-in our placement (2.8 of HR's 3.8 calls per request) are not encrypted under
+in our placement (2.8 of HR's 3.8 gRPC calls per request, plus database calls) are not encrypted under
 CI and CI4, while every other mesh encrypts them. This favors both on HR, and
 is part of why CI4 has the lowest overhead there.
 
@@ -479,15 +480,19 @@ same host settings and rates but fewer repetitions (5, 5, and 3). Same-day
 controls bound the effect of the day: IA7 on OB in the original placement
 reproduced the main run within 2\% at 90\% load (12\% faster at 60\%), and
 the baseline on OB in the fe-alone placement within 2\%, but CI on echo was
-24--31\% slower than in the main run and CI4 on echo differed by up to 41\%
-between the two days. A third control, a week after the main run, repeated B,
+24--31\% slower than in the main run and CI4's echo p99 was up to 70\% higher
+in the first follow-up run than in the control (2.99 against 1.76\,ms). A third control, a week after the main run, repeated B,
 IA4, CI4, and IS on OB and HR and IS with fe-alone on the same day: the
-baseline was 5--19\% slower than in the main run and IS on OB up to 58\%
-slower, so absolute values move between days more than rankings do, and the
+baseline was 5--19\% slower than in the main run, and IS up to 58\% slower on
+OB and 76\% on HR, so absolute values move between days more than rankings do, and the
 CI4 and placement comparisons we state hold within that day. We therefore compare the
 Cilium ablations only within a day and treat cross-day differences on echo of
-that size as inconclusive. We did not measure CI4's energy, and placement was
-varied only for OB.
+that size as inconclusive. Within a run, the 10 repetitions share one
+deployment, so their confidence intervals do not include the variation between
+deployments that these controls expose. The host kernel was updated (7.0.0-42
+to 7.0.0-43) between the initial saturation search and the main run; all
+other runs used the same kernel. We did not measure CI4's energy, and
+placement was varied only for OB.
 
 \paragraph{Versions and defaults}
 Meshes evolve quickly; we pin versions and use default proxy settings, which
@@ -500,9 +505,7 @@ deployment could avoid both. Hubble alone accounts for 43--54\% of CI's p99 on
 echo (\cref{sec:rq2}).
 
 \paragraph{Applications}
-Two benchmark applications and a microbenchmark cannot represent every call
-graph; Hotel Reservation keeps most of its calls on the same node under our
-placement, which favors node-level proxies.
+Two applications and a microbenchmark cannot represent every call graph.
 
 \section{Conclusion}
 \label{sec:conclusion}

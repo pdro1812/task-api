@@ -48,6 +48,10 @@ if ! kubectl -n kube-system get ds cilium >/dev/null 2>&1; then
   # cni.exclusive=false e socketLB.hostNamespaceOnly=true: exigidos para o Istio (sidecar e ambient) e o Linkerd
   # funcionarem sobre o Cilium. Caminhos de CNI explícitos: o cilium-cli detecta o k3s e usaria /var/lib/rancher/k3s/...,
   # mas com o flannel desligado o containerd do k3s procura nos caminhos padrão.
+  # Atenção: o cilium-cli detecta que o k3s não tem kube-proxy próprio e liga kubeProxyReplacement mesmo com o
+  # --set abaixo; no cluster medido o valor efetivo foi true (cilium-dbg status: KubeProxyReplacement True, Socket LB
+  # só no namespace do host). O kube-proxy embutido do k3s também roda (iptables), mas o tráfego de pods passa antes
+  # pelo eBPF do Cilium.
   cilium install "${ver_arg[@]}" \
     --set ipam.mode=kubernetes --set kubeProxyReplacement=false --set operator.replicas=1 \
     --set cni.exclusive=false --set socketLB.hostNamespaceOnly=true \

@@ -85,7 +85,7 @@ def main():
                     continue
                 s = f"{r['sat']:.0f}"
                 if r["max"] > r["min"]:
-                    s += f"\\,\\tiny[{r['min']}--{r['max']}]"
+                    s += f"\\,\\scriptsize[{r['min']}--{r['max']}]"
                 if cfg != "B":
                     s += f" ({100 * r['frac_B']:.0f}\\%)"
                 if r["limite_inferior"]:

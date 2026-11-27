@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# STATUS: rascunho, não testado com a bateria de energia
 """Compara a energia com e sem halt-polling do KVM (bateria principal x 05b-energia.sh).
 
 Uso: python 60_energia.py <cells da bateria principal> <cells da energia-hp0> [--saida ../paper/tables/energia.tex]

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Mede o grafo de chamadas de cada aplicação (para o modelo do RQ3): na IS, carga de 30% da base da bateria por
 # 3 min e leitura dos contadores dos sidecars (istio_requests_total e istio_tcp_connections_opened_total, lado
 # cliente) antes e depois. Por requisição externa: chamadas internas HTTP/gRPC (H) e conexões TCP a bancos, cada

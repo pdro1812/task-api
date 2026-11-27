@@ -65,7 +65,7 @@ Our contributions are:
         the L4 data planes; for per-pod sidecars, queueing at the busiest
         proxy instance cuts the error from 82\% to 19\% (Linkerd) and from
         135\% to 52\% (Istio), while node utilization does not explain it.
-        Node utilization bounds throughput within 19\% on the two
+        Node utilization predicts maximum throughput within 20\% on the two
         microservice applications. A placement experiment shows that node
         load explains the tail of L7 data planes only partly.
   \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy
@@ -77,9 +77,3 @@ sidecar on Online Boutique falls within the published range, but its latency
 overhead is larger (\cref{sec:validation}). We release the testbed, scripts, and data to
 support reproduction at \anonrepo.
 
-The rest of the paper is organized as follows. \Cref{sec:background} describes
-the mesh architectures we compare, \cref{sec:related} discusses related work,
-\cref{sec:method} presents the testbed and methodology, and
-\cref{sec:rq1,sec:rq2,sec:rq3,sec:rq4} answer the four research questions.
-\Cref{sec:threats} discusses threats to validity and \cref{sec:conclusion}
-concludes.

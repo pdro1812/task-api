@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# STATUS: rascunho, testado só com dados sintéticos
 """Estatística sobre cells.csv (10_agregar.py) e tabelas LaTeX para o artigo.
 
 Uso: python 20_estatistica.py <cells.csv> [--tabelas ../paper/tables] [--metricas p99_ms p50_ms j_per_req]

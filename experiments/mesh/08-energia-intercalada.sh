@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Checagem da energia do IS (resíduo de ~-2 W na bateria, onde cada configuração rodou num bloco de horas):
 # B e IS em blocos curtos intercalados (B×3, IS×3, B×3, IS×3) no OB a 90% da base da bateria, com a temperatura do
 # pacote (coretemp) registrada por rodada. Se o IS continuar abaixo do ajuste W ~ núcleos, o efeito é do mesh; se

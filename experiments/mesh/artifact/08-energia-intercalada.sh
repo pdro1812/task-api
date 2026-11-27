@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Checagem da energia do IS (resíduo de ~-2 W na bateria, onde cada configuração rodou num bloco de horas):
 # B e IS em blocos curtos intercalados (B×3, IS×3, B×3, IS×3) no OB a 90% da base da bateria, com a temperatura do
 # pacote (coretemp) registrada por rodada. Se o IS continuar abaixo do ajuste W ~ núcleos, o efeito é do mesh; se
@@ -7,7 +6,7 @@
 # Uso: ./08-energia-intercalada.sh [diretório]   Saída: <dir>/<cfg>-<bloco>-<rep>/ como na bateria + temp.txt
 source "$(dirname "$0")/lib/common.sh"
 source "$MESH_DIR/lib/measure.sh"
-OUT=${1:-${RESULTS:-$MESH_DIR/results}/energia-intercalada}
+OUT=${1:-/mnt/dados/resultados/energia-intercalada}
 mkdir -p "$OUT"
 base=$(sat_min ob B IS IA4 IA7 LK CI) || exit 1; rate=$(( base * 90 / 100 ))
 temp() { sensors 2>/dev/null | sed -n 's/^Package id 0: *+\([0-9.]*\).*/\1/p'; }

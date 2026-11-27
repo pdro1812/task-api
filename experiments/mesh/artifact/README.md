@@ -93,16 +93,17 @@ cd analysis && python3 -m venv .venv && .venv/bin/pip install -r requirements.tx
 
 | Paper element | Produced by | Input in `data/` |
 | --- | --- | --- |
-| Table I (configurations), Table VII (decision guide) | written by hand | — |
+| Table I (configurations), Table VIII (decision guide) | written by hand | — |
 | Table II (max throughput) | `analysis/13_saturacao.py` | `saturation/` (bisection `SATF_`, upward searches `SATR_` in `rep1/`, `rep2/`) |
-| Table III (p99 latency) and p50/p99.9 | `analysis/20_estatistica.py` | `main-cells.csv` plus the CI4 rows of `ci4-cells.csv` |
+| Table III (p99 latency) and p50/p99.9 | `analysis/20_estatistica.py` | `main-cells.csv` plus the CI4 rows of `ci4-cells.csv` (concatenate them first; run on a copy, since the script writes `estatistica.csv` and `pares.csv` next to its input) |
 | Fig. 1 (p99 vs load, bootstrap bands), Fig. 2 (CPU and memory per component) | `analysis/30_figuras.py --figs p99,recursos` | same combined cells |
 | Table IV (energy per request) | `analysis/60_energia.py` | `main-cells-summary.csv`, `energy-hp0-cells.csv` |
 | Fig. 3 and Table V (profiling) | `analysis/50_perfil.py` | raw profiles (not included); summary in `profiling.csv` |
 | Model table | `analysis/41_modelo_x.py` | main, placement and CI4 run directories, `hops.json`, saturation table |
 | Placement table | by hand from `placement-cells.csv` and `placement-node-util.csv` | — |
 | Per-node CPU utilization | `analysis/12_node_util.py` | `*-node-util.csv` |
-| Hubble ablation, eBPF program run time (RQ2 text) | `ci4-cells.csv`; `bpf-stats/` (`bpftool prog show -j` before/after) | — |
+| Hubble ablation (RQ2 text) | `ci-control-cells.csv` (same-day control; the earlier CINH/CINHA runs in `ci4-cells.csv` are superseded) | — |
+| eBPF program run time (RQ2 text) | `bpf-stats/` (`bpftool prog show -j` before/after) | — |
 | Pairwise comparisons in the decision guide | `analysis/20_estatistica.py` | `main-ci4-pairwise.csv` |
 | Statistics in the text (Kruskal–Wallis, Mann–Whitney with Holm, Cliff's δ, CV) | `analysis/20_estatistica.py` | `main-statistics.csv` |
 
@@ -111,7 +112,10 @@ Examples, from the artifact root:
 ```bash
 P=analysis/.venv/bin/python
 $P analysis/20_estatistica.py data/main-cells.csv --tabelas paper/tables
-$P analysis/40_modelo.py data/main-cells-summary.csv data/hops.json --saida paper/tables/modelo.tex
+# Table VI (model) is produced by analysis/41_modelo_x.py from the per-run Prometheus series of the main,
+# placement and CI4 run directories (not included for size; 05-bateria.sh and 10-placement.sh regenerate them).
+# The older 40_modelo.py (node term only, no cross-node term) works from data/main-cells-summary.csv:
+$P analysis/40_modelo.py data/main-cells-summary.csv data/hops.json --saida /tmp/modelo.tex
 $P analysis/60_energia.py data/main-cells-summary.csv data/energy-hp0-cells.csv --saida paper/tables/energia.tex
 ```
 
@@ -130,7 +134,7 @@ $P analysis/60_energia.py data/main-cells-summary.csv data/energy-hp0-cells.csv 
 | `hops.json` | internal calls per external request, per edge, same-node vs cross-node |
 | `profiling.csv` | data-plane CPU per request by category, context switches and syscalls per request |
 | `saturation/` | saturation searches (step logs and final values): initial and bisection, `rep1/` and `rep2/` upward searches |
-| `ci4-cells.csv`, `ci4-node-util.csv` | CI4 (45 runs) and Hubble ablation (CINH, CINHA; 12 runs) |
+| `ci4-cells.csv`, `ci4-node-util.csv` | CI4 (45 runs) and a first Hubble ablation (CINH, CINHA; 12 runs, superseded by the same-day control) |
 | `placement-cells.csv`, `placement-node-util.csv` | OB placement experiment (50 runs) |
 | `main-node-util.csv` | per-node CPU utilization of the main run |
 | `main-ci4-statistics.csv`, `main-ci4-pairwise.csv` | statistics with CI4 included; pairwise Mann–Whitney (Holm) between meshes |
@@ -145,3 +149,14 @@ included for size; `05-bateria.sh` regenerates them, and `analysis/10_agregar.py
 `13_saturacao.py` expects the results layout of the scripts (`<res>/saturacao-fina/`, `<res>/saturacao-rep/rep<N>/`,
 `<res>/ci4/saturacao/`); with the artifact data:
 `mkdir -p r/saturacao-rep && ln -s ../data/saturation r/saturacao-fina && ln -s ../../data/saturation/rep1 ../../data/saturation/rep2 r/saturacao-rep/ && mkdir -p r/ci4 && ln -s ../../data/saturation/ci4 r/ci4/saturacao && analysis/.venv/bin/python analysis/13_saturacao.py r`.
+
+Notes on the data:
+
+- The host ran kernel 7.0.0-42 for the initial saturation search (14--15/11) and 7.0.0-43 for every other run.
+- In `placement-cells.csv`, the IA7 wp-moved run at 90% load, repetition 5, has a waypoint CPU series that is almost
+  empty (0.006 cores against about 1.1 in the other runs): the Prometheus scrape of that container failed. Its latency
+  is in line with the other repetitions; the paper reports medians, which this sample does not change.
+- Hotel Reservation is configured so that its services register their Service DNS names in Consul instead of pod IPs
+  (`lib/apps.sh`, `deploy_hotel`).
+- `hops.json` counts gRPC calls only: pooled TCP connections to MongoDB, memcached and redis open no new connections
+  during the measurement and are therefore not counted.

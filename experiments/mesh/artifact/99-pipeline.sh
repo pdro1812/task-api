@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Encadeia o que vem depois da bateria, para não perder horas com a sessão desconectada:
 #   1. espera o 05-bateria.sh terminar e confere as 540 rodadas;
 #   2. análise: agregação, estatística, figuras e modelo (analysis/), com tabelas e figuras em paper/;
@@ -10,8 +9,8 @@
 # Uso: setsid nohup ./99-pipeline.sh [bateria] [resultados] > /dev/null 2>&1 < /dev/null &
 # Log com horários: <resultados>/pipeline.log
 source "$(dirname "$0")/lib/common.sh"
-BATERIA=${1:-${RESULTS:-$MESH_DIR/results}/bateria-1}
-RES=${2:-${RESULTS:-$MESH_DIR/results}}
+BATERIA=${1:-/mnt/dados/resultados/bateria-1}
+RES=${2:-/mnt/dados/resultados}
 TOTAL=${TOTAL:-540}
 MARC="$RES/.pipeline"; mkdir -p "$MARC"
 LOG="$RES/pipeline.log"

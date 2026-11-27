@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, primeiro uso em 18/11
 # Bateria de energia com o halt-polling do KVM desligado (halt_poll_ns=0). Na bateria principal, o host girava até
 # 200 µs em cada vCPU ociosa antes de dormir, o que gasta energia sem aparecer como CPU ocupada nas VMs e favorecia
 # as configurações que ocupam mais a CPU. Mesmas taxas, aquecimento e duração da bateria principal; 6 configurações

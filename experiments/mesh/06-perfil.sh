@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Perfil do plano de dados (RQ2: de onde vem o custo de cada mesh). Para cada configuração, com carga constante de
 # 60% da saturação em uma app, coleta nos nós de trabalho, durante PERF_S segundos:
 #   - perf record -a -g (todas as CPUs da VM) -> pilhas "folded" para flamegraph, por nó;

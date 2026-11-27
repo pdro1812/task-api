@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# STATUS: rascunho, testado só com os dados da bateria (sem validação externa)
 """Modelo composicional do acréscimo de latência de um mesh (RQ3), com o grafo de chamadas medido.
 
     acréscimo(mesh, app, carga) = P_mesh(app) * c_mesh + q_mesh * rho/(1 - rho)

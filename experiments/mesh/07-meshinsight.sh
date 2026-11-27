@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, primeiro uso em 14/11
 # Reprodução do MeshInsight (Zhu et al., SoCC 2023): acréscimo de latência e de CPU do Istio com sidecar sobre a
 # mesma aplicação sem mesh, numa taxa perto da saturação. O artigo (Istio 1.13 / Envoy 1.21, Online Boutique e Hotel)
 # não dá um número único: "request latency increases by 27-269% and CPU usage increases by 42-163%", conforme a

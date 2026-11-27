@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# STATUS: rascunho, não testado
 # Encadeia o que vem depois da bateria, para não perder horas com a sessão desconectada:
 #   1. espera o 05-bateria.sh terminar e confere as 540 rodadas;
 #   2. análise: agregação, estatística, figuras e modelo (analysis/), com tabelas e figuras em paper/;

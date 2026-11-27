@@ -25,8 +25,9 @@ artifact.
 
 \paragraph{Mesh configuration}
 Every mesh encrypts east-west traffic in its default data path
-(\cref{tab:configs}). For Istio (IS, IA4, IA7) we apply a mesh-wide
-\texttt{STRICT} \texttt{PeerAuthentication}, and for Linkerd a default policy
+(\cref{tab:configs}). For Istio (IS, IA4, IA7) we apply a \texttt{STRICT}
+\texttt{PeerAuthentication} in every application namespace (PERMISSIVE only
+for the entry workload), and for Linkerd a default policy
 that only admits authenticated mesh traffic, so both require workload-level
 mutual TLS. For Cilium we enable WireGuard encryption between nodes and a
 \texttt{CiliumNetworkPolicy} with L7 HTTP rules on the application ports,
@@ -40,8 +41,11 @@ accepts plaintext traffic from the load generator.
 
 \paragraph{Cilium settings}
 The same Cilium installation serves as the CNI in all seven configurations. It
-runs with kube-proxy replacement enabled, so service load balancing is done by
-eBPF programs at each pod's network interface, but with socket-level load
+runs with kube-proxy replacement enabled (set by the Cilium installer's
+auto-detection, overriding the value our install script passes; we verified it
+on the running cluster), so service load balancing for pod traffic is done by
+eBPF programs at each pod's network interface ahead of k3s's own kube-proxy
+rules, but with socket-level load
 balancing limited to the host namespace, a setting that Istio and Linkerd
 require to see the original service address; pod traffic is carried between
 nodes in a VXLAN tunnel. Hubble, Cilium's flow observability, is on by
@@ -68,7 +72,10 @@ which isolates the per-hop cost of the data plane. \emph{Online Boutique}
 (OB)~\cite{onlineboutique} has 11 services communicating over gRPC, with its
 built-in load generator removed. \emph{Hotel Reservation}
 (HR)~\cite{gan2019deathstarbench} has eight Go services that communicate over
-gRPC, a Consul registry, and six MongoDB and three memcached instances. The k6 scripts emulate user sessions: for OB, browsing the home
+gRPC, a Consul registry, and six MongoDB and three memcached instances; we
+configure its services to register their Service DNS names in Consul instead
+of pod IPs, so that their calls are addressed to Services as in the other
+applications. The k6 scripts emulate user sessions: for OB, browsing the home
 page, viewing products, changing currency, and adding to the cart; for HR, 60\%
 hotel search, 39\% recommendations, 0.5\% logins, and 0.5\% reservations.
 
@@ -122,11 +129,14 @@ the highest level leaves every configuration some headroom.
 The main experiment crosses 6 configurations, 3 applications, and 3 load
 levels, with 10 repetitions per cell, for 540 runs. Latency and resource
 metrics come from these 10 repetitions; energy comes from 3 repetitions per
-cell of a second run (below). Three follow-up experiments ran later on the same
+cell of a second run (below). Four follow-up experiments ran later on the same
 testbed, host settings, and absolute rates: CI4 on all cells with 5
 repetitions (45 runs; no energy); a placement experiment on OB (\cref{sec:rq3},
 50 runs); and, on another day, a Hubble ablation of CI on echo with a
-same-day control of CI and a repeat of CI4 (\cref{sec:rq2}, 24 runs). Within each configuration,
+same-day control of CI and a repeat of CI4 (\cref{sec:rq2}, 24 runs); and a
+same-day control of B, IA4, CI4, and IS on OB and HR plus IS in the fe-alone
+placement (54 runs). Same-day controls use 3 runs per cell, too few for a
+Mann--Whitney test to reach $p<0.05$, so we report them descriptively. Within each configuration,
 the order of runs is randomized with a fixed seed. Each run has 60\,s of
 warm-up, which is discarded, followed by 180\,s of measurement.
 
@@ -141,10 +151,7 @@ above the baseline. Energy comes from a second run of the same cells (30\%
 and 90\% load, 3 repetitions) with KVM halt-polling disabled
 (\cref{sec:threats}); latency and resource results come from the main run.
 Without halt-polling, p99 stayed within 10\% of the main run in 25 of the 36
-cells; the baseline itself became 8--29\% faster, and the largest mesh changes
-were Ambient L4 on echo (+15 to +29\%) and the waypoint on HR at 90\% load
-($-$24\%), so overheads relative to the baseline are, if anything, conservative
-in the main run for most meshes. Resource
+cells, and the baseline became 8--29\% faster. Resource
 costs are also
 normalized to millicores and MiB per 1{,}000\,req/s.
 

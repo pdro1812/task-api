@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# STATUS: rascunho, testado só com dados sintéticos
 """Figuras do artigo, em PDF, largura de coluna IEEE (3,5 pol.) e legíveis em escala de cinza.
 
 Uso: python 30_figuras.py <diretório da bateria> [--perfil <diretório do 06-perfil.sh>]
@@ -88,7 +87,7 @@ def fig_p99(df, saida):
             ic = np.array([ic_mediana(x[x.load == l].p99_ms.values) for l in loads])
             cor, traco, marca = ESTILO[cfg]
             ax.fill_between(loads, ic[:, 0], ic[:, 1], color=cor, alpha=0.25, linewidth=0)
-            ax.plot(loads, med, color=cor, linestyle=traco, marker=marca, markersize=3, label=cfg)
+            ax.plot(loads, med, color=cor, linestyle=traco, marker=marca, markersize=4.5, label=cfg)
         ax.set_title({"echo": "Echo", "ob": "OB", "hotel": "HR"}[app])
         ax.set_xticks([30, 60, 90])
         ax.set_xlabel("load (%)")
