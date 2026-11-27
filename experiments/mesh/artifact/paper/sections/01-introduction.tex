@@ -59,12 +59,12 @@ Our contributions are:
         WireGuard. Ablations show that Cilium's cost comes from the L7
         redirect and Hubble flow logging, not from its eBPF programs.
   \item \textbf{A model of the tail and its limits} (RQ3). A compositional
-        model of per-hop proxy cost, cross-node hops, and queueing predicts
-        the p99 of an application held out from fitting within 11--13\% for
+        model of per-hop proxy cost, cross-node hops, and queueing, fitted on
+        two applications, explains the p99 of the third within 11--13\% for
         the L4 data planes; for per-pod sidecars, queueing at the busiest
         proxy instance cuts the error from 82\% to 19\% (Linkerd) and from
         135\% to 52\% (Istio), while node utilization does not explain it.
-        A bottleneck law predicts throughput within 19\% on the two
+        Node utilization bounds throughput within 19\% on the two
         microservice applications. A placement experiment shows that node
         load explains the tail of L7 data planes only partly.
   \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy

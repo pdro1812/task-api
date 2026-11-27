@@ -39,7 +39,8 @@ adds less on HR (+25\%), about the same on OB (+55\%; not significantly
 different from Ambient L4 at 30\% and 90\% load), and more on echo in this
 run (+128\%), where WireGuard on the single cross-node hop is its whole cost.
 CI4's echo p99 varies between days more than any other measurement, however:
-a same-day control on another day gave 1.7--1.8\,ms instead of 2.8--3.0\,ms
+a control run on a later day, together with CI, gave 1.7--1.8\,ms instead of
+2.8--3.0\,ms
 (\cref{sec:threats}), so its comparison with Ambient L4 on echo is
 inconclusive. In both runs it falls slightly with load, as if the fixed
 per-packet cost were amortized over more packets per interrupt, which we did
@@ -92,8 +93,9 @@ whose overhead is mostly a fixed per-request cost.
 
 \paragraph{CPU and memory}
 \Cref{fig:resources} breaks CPU down by component, normalized per
-1{,}000\,req/s. At 90\% load, Ambient L4 adds the least CPU (+33\% to +61\%
-depending on the application), while Cilium adds the most (+93\% on OB and
+1{,}000\,req/s. At 90\% load, among meshes with workload mTLS, Ambient L4 adds
+the least CPU (+33\% to +61\% depending on the application), while CI adds the
+most on echo and OB (+93\% on OB and
 +306\% on echo). The Istio sidecar adds +215\% on echo and +116\% on HR.
 On OB at 60\% load, the setting used in the abstract, the extra CPU over
 the baseline is 2.6 (IA4), 4.1 (IA7), 4.5 (LK), 6.7 (IS), and 7.0 (CI) cores
@@ -306,11 +308,12 @@ times smaller, so node utilization is not what sets their tail.
 \paragraph{Placement}
 To test whether the busiest node sets the tail, we repeated OB at the 60\% and
 90\% rates (5 runs each) with two other placements, together with a same-day
-control, IA7 in the original placement, which reproduced the main run (70.5
-against 69.3\,ms at 90\% load). In \emph{fe-alone}, the frontend, which issues
+control, IA7 in the original placement, which reproduced the main run at 90\% load (70.5
+against 69.3\,ms; 36.7 against 41.5\,ms at 60\%). In \emph{fe-alone}, the frontend, which issues
 10 of the 11 internal calls, runs alone on its worker and the other ten
 services alternate on the other two (B, IS, IA7). In \emph{wp-moved}, IA7's
-waypoint moves to the least-loaded worker. \Cref{tab:placement} shows that
+waypoint moves to the worker that was least loaded in the original placement
+(it becomes the busiest). \Cref{tab:placement} shows that
 the changes are only partly consistent with a node-level explanation. Under
 fe-alone, IA7's busiest worker rose from 51\% to 72\% and its p99 from 71 to
 106\,ms, as that explanation predicts. But isolating the frontend lowered
@@ -384,7 +387,8 @@ HR, but it authenticates nodes, not workloads, and leaves same-node traffic
 unencrypted.
 Second, for L7 data planes, the tail is not predicted by per-hop cost or by
 node utilization (\cref{sec:rq3}); in the one case where moving pods
-relieved the busiest node (IS), p99 changed by only 4\%. For per-pod sidecars, the load on the busiest proxy
+relieved the busiest node (IS), p99 did not fall (4\% lower, against the main
+run on an earlier day). For per-pod sidecars, the load on the busiest proxy
 instance, the sidecar of the fan-out service, predicts it better. Capacity
 planning for L7 meshes should therefore measure the tail under the intended
 placement rather than infer it from node utilization.
@@ -407,7 +411,7 @@ placement rather than infer it from node utilization.
       extra cores; no workload identity, same-node traffic in clear \\
     L7 policy, deep call graphs & LK & p99 on OB: +463\% (LK) and +483\%
       (IA7; not significantly different) vs.\ +1025\% (IS); on HR, LK +144\%,
-      IA7 +273\% (not different from IS, +287\%) \\
+      IA7 +273\% (not different from IS, +286\%) \\
     L7 on a high fan-out service & LK or IA7; test placement & node load
       explains the tail only partly: isolating the frontend changed IS's p99 by
       4\%; moving the waypoint to the least-loaded node raised IA7's from 71 to
@@ -426,10 +430,9 @@ placement rather than infer it from node utilization.
 
 \paragraph{Single host}
 All VMs share one host, memory bus, and last-level cache. We mitigate this by
-pinning every vCPU to a dedicated physical thread and by partially reproducing
-MeshInsight (\cref{sec:validation}: CPU overheads fall within the published
-range, latency overheads do not), but absolute numbers will differ on
-physical clusters. Relative results are stable across deployments: a second,
+pinning every vCPU to a dedicated physical thread, but absolute numbers will
+differ on physical clusters: our reproduction of MeshInsight matches its CPU
+overheads but not its latency overheads (\cref{sec:validation}). Relative results are stable across deployments: a second,
 independent deployment of every configuration reproduced the p99 ranking
 (\cref{sec:rq1}).
 
@@ -451,8 +454,8 @@ proxy for host power.
 Runs are randomized within each configuration, but configurations ran in
 blocks. An interleaved control experiment (B and IS alternated in blocks, with
 halt-polling enabled) reproduced the power difference observed in the main run
-at the same temperatures, which rules out time of day and temperature as its
-cause; the smaller residual reported under Energy under virtualization persists
+at the same temperatures, which makes time of day and temperature unlikely
+causes; the smaller residual reported under Energy under virtualization persists
 with halt-polling disabled.
 
 \paragraph{Encryption scope}
@@ -462,12 +465,16 @@ CI and CI4, while every other mesh encrypts them. This favors both on HR, and
 is part of why CI4 has the lowest overhead there.
 
 \paragraph{Follow-up runs}
-CI4, the placement experiment, and the Hubble ablation ran on a later day,
-after a host reboot, with the same host settings and rates but fewer
-repetitions (5, 5, and 3). Same-day controls bound the effect of the day: IA7
-on OB in the original placement, and the baseline on OB, reproduced the main
-run within 2\% (the baseline in the fe-alone placement), but CI on echo was 24--31\% slower than in the main run and
-CI4 on echo differed by up to 40\% between two days. We therefore compare the
+CI4 and the placement experiment ran a few days after the main run, and the
+Hubble ablation, with a CI control and a repeat of CI4 on echo, a week later,
+each after a host reboot, with the
+same host settings and rates but fewer repetitions (5, 5, and 3). Same-day
+controls bound the effect of the day: IA7 on OB in the original placement
+reproduced the main run within 2\% at 90\% load (12\% faster at 60\%), and
+the baseline on OB in the fe-alone placement within 2\%, but CI on echo was
+24--31\% slower than in the main run and CI4 on echo differed by up to 41\%
+between the two days. Comparisons of CI4 and of fe-alone with the main run are
+therefore cross-day. We therefore compare the
 Cilium ablations only within a day and treat cross-day differences on echo of
 that size as inconclusive. We did not measure CI4's energy, and placement was
 varied only for OB.
@@ -505,5 +512,6 @@ predicts the throughput of the microservice applications, but neither predicts
 the tail of L7 data planes. The utilization of the busiest proxy instance
 predicts it better for per-pod sidecars (held-out error 19\% for Linkerd and
 52\% for the Istio sidecar, against 82\% and 135\% with node utilization), and
-relieving the busiest node changed the sidecar's tail by only 4\%. We release the testbed and
+relieving the busiest node did not reduce the sidecar's tail (4\% lower,
+against an earlier day's run). We release the testbed and
 data so that these results can be reproduced and extended.

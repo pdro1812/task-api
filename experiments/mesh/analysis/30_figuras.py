@@ -125,12 +125,19 @@ def fig_recursos(df, saida, carga=90):
                     ax.bar(pos, v, bottom=base, color="white", edgecolor="black", hatch=HACHURAS[k],
                            linewidth=0.4, label=c if pos == 0 else None)
                     base += v
-                rotulos.append((pos, f"{app}\n{cfg}" if cfg == "B" else cfg))
+                rotulos.append((pos, cfg))
                 pos += 1
             pos += 0.6
         ax.set_ylabel(unidade)
     axs[1].set_xticks([p for p, _ in rotulos])
     axs[1].set_xticklabels([r for _, r in rotulos], rotation=90, fontsize=6)
+    # nome da aplicação abaixo de cada grupo de barras
+    n = len(ORDEM)
+    for k, app in enumerate(("Echo", "OB", "HR")):
+        grupo = [p for p, _ in rotulos[k * n:(k + 1) * n]]
+        if grupo:
+            axs[1].text(sum(grupo) / len(grupo), -0.32, app, transform=axs[1].get_xaxis_transform(),
+                        ha="center", va="top", fontsize=7)
     fig.legend(*axs[0].get_legend_handles_labels(), ncol=4, loc="upper center", fontsize=5.5,
                bbox_to_anchor=(0.5, 1.0))
     fig.tight_layout(pad=0.3, rect=(0, 0, 1, 0.9))

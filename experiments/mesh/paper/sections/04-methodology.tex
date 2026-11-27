@@ -125,7 +125,8 @@ metrics come from these 10 repetitions; energy comes from 3 repetitions per
 cell of a second run (below). Three follow-up experiments ran later on the same
 testbed, host settings, and absolute rates: CI4 on all cells with 5
 repetitions (45 runs; no energy); a placement experiment on OB (\cref{sec:rq3},
-50 runs); and a Hubble ablation of CI on echo (\cref{sec:rq2}, 12 runs). Within each configuration,
+50 runs); and, on another day, a Hubble ablation of CI on echo with a
+same-day control of CI and a repeat of CI4 (\cref{sec:rq2}, 24 runs). Within each configuration,
 the order of runs is randomized with a fixed seed. Each run has 60\,s of
 warm-up, which is discarded, followed by 180\,s of measurement.
 
@@ -140,7 +141,7 @@ above the baseline. Energy comes from a second run of the same cells (30\%
 and 90\% load, 3 repetitions) with KVM halt-polling disabled
 (\cref{sec:threats}); latency and resource results come from the main run.
 Without halt-polling, p99 stayed within 10\% of the main run in 25 of the 36
-cells; the baseline itself became 10--29\% faster, and the largest mesh changes
+cells; the baseline itself became 8--29\% faster, and the largest mesh changes
 were Ambient L4 on echo (+15 to +29\%) and the waypoint on HR at 90\% load
 ($-$24\%), so overheads relative to the baseline are, if anything, conservative
 in the main run for most meshes. Resource

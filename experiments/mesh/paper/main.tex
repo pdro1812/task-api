@@ -36,22 +36,20 @@
 Service meshes add encryption, telemetry, and traffic policy to microservices, but each data-plane design pays for
 them differently: a proxy per pod (sidecar), a per-node L4 proxy with optional shared L7 waypoints (ambient), or
 in-kernel eBPF with a per-node proxy. We measure seven configurations---no mesh, Istio sidecar, Istio ambient with and
-without waypoints, Linkerd, and Cilium with WireGuard, with and without L7 policy---each in its default data path,
-on a pinned, virtualized Kubernetes testbed with open-loop load at three fixed rates per application, using a
-synthetic echo service, Online Boutique, and DeathStarBench Hotel Reservation. On Online Boutique at the middle
-rate, the Istio sidecar adds 52\,ms to p99 latency and ambient L4 6.7\,ms, and the meshes keep 2.0 (Cilium without
-L7) to 9.1 (Cilium with L7) more cores busy per 1{,}000~req/s than no mesh; energy per request grows by 16 to
-188\% at the highest rate. Among meshes that authenticate workloads, ambient L4 has the lowest latency,
-CPU, and memory and the highest or near-highest throughput; Cilium without L7 policy uses less CPU and sustains as much or more
-throughput, with lower or similar p99 on the two microservice applications, but authenticates only nodes.
-Profiling attributes most of the overhead
-to HTTP/2 processing for the Istio sidecar, TLS for ambient L4, and, for Cilium, the redirect to its per-node
-Envoy and Hubble flow logging, not its eBPF programs (4--5\% of its data-plane CPU). A compositional model
-predicts the held-out application's p99 overhead within 11--13\% for the two L4 data planes, and a bottleneck law
-predicts saturation throughput within 19\% on the two microservice applications; but neither per-hop costs, cross-node hops, nor node utilization
-predict the tail of L7 data planes; the load on the busiest proxy instance predicts it better for per-pod sidecars,
-and relieving the busiest node changed the Istio sidecar's tail by only 4\%. We distill the
-results into a decision guide for choosing a data plane.
+without waypoints, Linkerd, and Cilium with WireGuard, with and without L7 policy---on a pinned, virtualized
+Kubernetes testbed with open-loop load, using an echo service, Online Boutique, and DeathStarBench Hotel
+Reservation. On Online Boutique at the middle rate, the Istio sidecar adds 52\,ms to p99 latency and ambient L4
+6.7\,ms; the meshes keep 2.0 (Cilium without L7) to 9.1 (Cilium with L7) more cores busy per 1{,}000~req/s,
+and energy per request grows by 16 to 188\% at the highest rate. Among meshes that authenticate workloads,
+ambient L4 has the lowest latency, CPU, and memory and the highest or near-highest throughput; Cilium without
+L7 policy, measured on a later day, is as cheap or cheaper on the two microservice applications but
+authenticates only nodes. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar,
+TLS for ambient L4, and, for Cilium, the redirect to its per-node Envoy and Hubble flow logging, not its eBPF
+programs. A per-hop model fitted on two applications explains the third within 11--13\% for L4 data planes, and
+node utilization bounds throughput within 19\% on the microservice applications. For L7 data planes, per-hop
+costs and node utilization do not explain the tail; the load on the busiest proxy instance does better for
+per-pod sidecars, and relieving the busiest node did not reduce the Istio sidecar's tail. We distill the results
+into a decision guide.
 \end{abstract}
 
 \begin{IEEEkeywords}
