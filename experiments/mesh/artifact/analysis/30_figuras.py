@@ -89,7 +89,7 @@ def fig_p99(df, saida):
             cor, traco, marca = ESTILO[cfg]
             ax.fill_between(loads, ic[:, 0], ic[:, 1], color=cor, alpha=0.25, linewidth=0)
             ax.plot(loads, med, color=cor, linestyle=traco, marker=marca, markersize=3, label=cfg)
-        ax.set_title(app)
+        ax.set_title({"echo": "Echo", "ob": "OB", "hotel": "HR"}[app])
         ax.set_xticks([30, 60, 90])
         ax.set_xlabel("load (%)")
         ax.set_yscale("log")
