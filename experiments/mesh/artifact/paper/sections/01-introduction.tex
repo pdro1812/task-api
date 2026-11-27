@@ -25,12 +25,12 @@ one another.
 The most detailed study of mesh overheads to date, MeshInsight~\cite{zhu2023meshinsight},
 decomposed the cost of the Istio sidecar into its components and found that it
 can raise latency by up to 269\% and CPU usage by up to 163\%. That analysis,
-however, covers only the Envoy sidecar, uses closed-loop load, and its model
-explicitly does not predict tail latency. More recent comparisons of sidecar and
+however, covers only the Envoy sidecar, profiles it with at most one
+outstanding request, and its model explicitly cannot predict tail latency. More recent comparisons of sidecar and
 sidecar-less meshes~\cite{bremlerbarr2024mtls} examine mTLS alone, on a
 synthetic server with an artificial delay, without L7 processing, waypoints,
 energy, or a predictive model. Operators choosing a mesh today therefore lack a
-like-for-like comparison of the architectures they can actually deploy.
+same-testbed comparison of the architectures they can actually deploy.
 
 This paper provides that comparison. We measure seven configurations on the same
 testbed: no mesh, Istio sidecar, Istio Ambient with and without a waypoint,
@@ -44,7 +44,7 @@ the coordinated-omission bias that hides tail latency~\cite{tene2015latency}.
 Our contributions are:
 
 \begin{itemize}
-  \item \textbf{A like-for-like measurement of seven mesh configurations}
+  \item \textbf{A same-testbed measurement of seven mesh configurations}
         (RQ1). We report p99 and p99.9 latency, maximum SLO-compliant
         throughput, CPU, memory, and energy per request, with ten randomized
         repetitions per cell for latency and resources (five for Cilium
@@ -59,13 +59,14 @@ Our contributions are:
         WireGuard. Ablations show that Cilium's cost comes from the L7
         redirect and Hubble flow logging, not from its eBPF programs.
   \item \textbf{A model of the tail and its limits} (RQ3). A compositional
-        model of per-hop proxy cost, cross-node hops, and node utilization
-        predicts the p99 of an application held out from fitting within
-        11--13\% for the L4 data planes, and a bottleneck law predicts
-        throughput within 19\% on the two microservice applications. For L7 data planes the model fails, and a
-        placement experiment shows that relieving the busiest node does not
-        reduce the tail; queueing at the busiest proxy instance explains part
-        of it for per-pod sidecars, but not for shared proxies.
+        model of per-hop proxy cost, cross-node hops, and queueing predicts
+        the p99 of an application held out from fitting within 11--13\% for
+        the L4 data planes; for per-pod sidecars, queueing at the busiest
+        proxy instance cuts the error from 82\% to 19\% (Linkerd) and from
+        135\% to 52\% (Istio), while node utilization does not explain it.
+        A bottleneck law predicts throughput within 19\% on the two
+        microservice applications. A placement experiment shows that node
+        load explains the tail of L7 data planes only partly.
   \item \textbf{A decision guide} (RQ4) that maps latency, CPU, and energy
         budgets to the mesh that satisfies them.
 \end{itemize}

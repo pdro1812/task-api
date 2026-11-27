@@ -36,11 +36,14 @@ medians with significance against the baseline. At 90\% load, among the
 meshes that authenticate workloads, Ambient L4 adds the least: +60\% on echo,
 +62\% on OB, and +54\% on HR. Cilium without L7 rules (CI4, 5 runs per cell)
 adds less on HR (+25\%), about the same on OB (+55\%; not significantly
-different from Ambient L4 at 30\% and 90\% load), and more on echo (+128\%),
-where WireGuard on the single cross-node hop is its whole cost; there, CI4's
-p99 even falls slightly with load (3.03, 2.99, and 2.78\,ms), as if the fixed
-per-packet cost were amortized over more packets per interrupt at higher
-rates, which we did not verify. The Istio sidecar is
+different from Ambient L4 at 30\% and 90\% load), and more on echo in this
+run (+128\%), where WireGuard on the single cross-node hop is its whole cost.
+CI4's echo p99 varies between days more than any other measurement, however:
+a same-day control on another day gave 1.7--1.8\,ms instead of 2.8--3.0\,ms
+(\cref{sec:threats}), so its comparison with Ambient L4 on echo is
+inconclusive. In both runs it falls slightly with load, as if the fixed
+per-packet cost were amortized over more packets per interrupt, which we did
+not verify. The Istio sidecar is
 the worst on OB, the application with the deepest call graph (11 internal calls
 per request, 10.4 of them across nodes; \cref{sec:rq3}), where its p99 grows by
 +1025\% (11.9 to 133.7\,ms). CI is the worst on echo (+799\%), even though
@@ -70,7 +73,8 @@ whose overhead is mostly a fixed per-request cost.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{figs/p99_carga.pdf}
-  \caption{p99 latency vs.\ load level (median of 10 runs, 5 for CI4; bands:
+  \caption{p99 latency vs.\ load level (median of 10 runs; 5 for CI4, run on a
+           later day; bands:
            95\% bootstrap confidence interval of the median). Load levels are
            fixed rates, 30/60/90\% of the lowest initial saturation
            estimate (\cref{sec:load}).}
@@ -79,7 +83,7 @@ whose overhead is mostly a fixed per-request cost.
 
 \begin{table*}[t]
   \centering
-  \caption{p99 latency (ms), median of 10 runs (5 for CI4). $^{*}$: different from B
+  \caption{p99 latency (ms), median of 10 runs (5 for CI4, run on a later day). $^{*}$: different from B
            (Mann--Whitney, Holm-corrected within each column, $p<0.05$).}
   \label{tab:p99}
   \small
@@ -121,7 +125,7 @@ not as mesh cost.
   \centering
   \includegraphics[width=\columnwidth]{figs/recursos.pdf}
   \caption{Container CPU and memory per 1{,}000\,req/s by component, at 90\%
-           load (5 runs for CI4, whose WireGuard work runs in the kernel and
+           load (5 runs for CI4, on a later day; its WireGuard work runs in the kernel and
            is not attributed to any container).}
   \label{fig:resources}
 \end{figure}
@@ -187,12 +191,13 @@ L7 rule on both nodes, is encrypted by WireGuard (14\% of the total), and makes
 the Cilium agent spend almost as much CPU as Envoy itself (36\,s against 39\,s
 over the profiling window). It also has the most context switches per request
 (27, against 12 for the sidecar). We could not resolve the agent's symbols, so
-we located the agent's cost with two ablations instead. With Hubble, Cilium's
-flow observability, disabled (echo, 3 runs), the agent's CPU at 90\% load
-falls from 0.93 to 0.36 cores and p99 from 11.0 to 6.1\,ms (4.6 against
-6.6\,ms at 60\%); also disabling Envoy's access log changes neither. Removing
-the L7 rule while keeping WireGuard (CI4) brings p99 down to 2.8\,ms, close to
-Ambient L4. The eBPF programs themselves are cheap: with
+we located the agent's cost with ablations, run together with a same-day
+control of CI (echo, 3 runs each). With Hubble, Cilium's flow observability,
+disabled, the agent's CPU at 90\% load falls from 0.96 to 0.36 cores and p99
+from 14.4 to 6.7\,ms (8.2 to 4.7\,ms at 60\%): Hubble accounts for 43--54\%
+of CI's p99, and every run without it was faster than every run with it. Also
+disabling Envoy's access log changes neither. Removing the L7 rule while
+keeping WireGuard (CI4) brings p99 down to 1.7\,ms on the same day. The eBPF programs themselves are cheap: with
 \texttt{kernel.bpf\_stats\_enabled}, all of Cilium's programs together run
 for 40\,\textmu s per echo request and 354\,\textmu s per OB request, 4--5\%
 of its data-plane CPU, and the difference to CI4 (19 and 88\,\textmu s) comes
@@ -398,7 +403,7 @@ placement rather than infer it from node utilization.
       workload mTLS (+54 to +62\%), 78--82\% of no-mesh throughput, least CPU;
       no L7 parsing (\cref{sec:rq2}) \\
     Node-to-node encryption suffices & CI4 & p99 +25\% (HR, below IA4), +55\%
-      (OB, like IA4), +128\% (echo); 82--87\% of no-mesh throughput; fewest
+      (OB, like IA4), echo inconclusive (1.7--3.0\,ms across days); 82--87\% of no-mesh throughput; fewest
       extra cores; no workload identity, same-node traffic in clear \\
     L7 policy, deep call graphs & LK & p99 on OB: +463\% (LK) and +483\%
       (IA7; not significantly different) vs.\ +1025\% (IS); on HR, LK +144\%,
@@ -411,7 +416,7 @@ placement rather than infer it from node utilization.
       7\,MiB per pod vs.\ 57\,MiB for Istio sidecars \\
     Already on Cilium & CI4, or scoped L7 rules with Hubble off & the L7
       redirect and Hubble, not eBPF (4--5\% of data-plane CPU), make CI the
-      most expensive mesh; Hubble off cuts echo p99 by 31--45\% \\
+      most expensive mesh; Hubble off cuts echo p99 by 43--54\% \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -459,9 +464,13 @@ is part of why CI4 has the lowest overhead there.
 \paragraph{Follow-up runs}
 CI4, the placement experiment, and the Hubble ablation ran on a later day,
 after a host reboot, with the same host settings and rates but fewer
-repetitions (5, 5, and 3). A same-day control, IA7 on OB in the original
-placement, reproduced the main run within 2\% at 90\% load. We did not
-measure CI4's energy, and placement was varied only for OB.
+repetitions (5, 5, and 3). Same-day controls bound the effect of the day: IA7
+on OB in the original placement, and the baseline on OB, reproduced the main
+run within 2\% (the baseline in the fe-alone placement), but CI on echo was 24--31\% slower than in the main run and
+CI4 on echo differed by up to 40\% between two days. We therefore compare the
+Cilium ablations only within a day and treat cross-day differences on echo of
+that size as inconclusive. We did not measure CI4's energy, and placement was
+varied only for OB.
 
 \paragraph{Versions and defaults}
 Meshes evolve quickly; we pin versions and use default proxy settings, which
@@ -470,7 +479,7 @@ the busiest sidecar stayed below its 2-CPU limit (\cref{sec:testbed}).
 Cilium shares one CNI configuration with the other meshes, with socket-level
 load balancing limited to the host namespace (required by Istio and Linkerd),
 and CI keeps Hubble and the Envoy access logs on, as by default; a Cilium-only
-deployment could avoid both. Hubble alone accounts for 31--45\% of CI's p99 on
+deployment could avoid both. Hubble alone accounts for 43--54\% of CI's p99 on
 echo (\cref{sec:rq2}).
 
 \paragraph{Applications}
@@ -486,7 +495,7 @@ load and the same absolute request rates for all of them. Among the meshes that
 authenticate workloads, Istio Ambient in L4 mode is the cheapest on every
 metric except energy on OB at 90\% load (within 3\% of the waypoint): it keeps 78--82\% of the no-mesh throughput and adds 54--62\% to p99 at
 90\% load, while the L7 data planes add 144--1025\%. Cilium without L7 rules uses
-less CPU and sustains more throughput still, with a lower or similar tail on the
+less CPU and sustains as much or more throughput, with a lower or similar tail on the
 two microservice applications, at the price of node-level rather than
 workload-level security. Profiling shows where the difference comes
 from: HTTP/2 processing for the Istio sidecar, TLS for ztunnel, and, for Cilium,

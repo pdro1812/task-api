@@ -76,6 +76,7 @@ CONFIGS="CINH CINHA" APPS=echo LOADS="60 90" REPS=3 ./05-bateria.sh results/ci4 
 BPF_STATS=1 CONFIGS="CI CI4" ./06-perfil.sh results/ci4/perfil-bpf               # eBPF program run time
 SUBIR=1 SATF_BASE=<saturacao.env> ./04-saturacao.sh        # upward saturation search until two consecutive failures
 ./12-saturacao-extra.sh                                    # CI4 saturation and the remaining repeated searches
+./13-controle-ci.sh                                        # same-day control: CI, CINH, CINHA, CI4 on echo, 60/90%, 3 reps
 ```
 
 `./03-config.sh <B|IS|IA4|IA7|LK|CI|CI4|CINH|CINHA>` prepares a single configuration (restores the snapshot, installs the mesh,
@@ -132,6 +133,7 @@ $P analysis/60_energia.py data/main-cells-summary.csv data/energy-hp0-cells.csv 
 | `placement-cells.csv`, `placement-node-util.csv` | OB placement experiment (50 runs) |
 | `main-node-util.csv` | per-node CPU utilization of the main run |
 | `main-ci4-statistics.csv`, `main-ci4-pairwise.csv` | statistics with CI4 included; pairwise Mann–Whitney (Holm) between meshes |
+| `ci-control-cells.csv`, `ci-control-node-util.csv` | same-day control of CI with the Hubble ablation and CI4 (echo, 24 runs) |
 | `bpf-stats/` | `bpftool` dumps with `kernel.bpf_stats_enabled` for CI and CI4 (echo, OB at 60%) |
 | `installed-versions.txt`, `images.txt` | versions recorded at install time and the digests of the preloaded images |
 

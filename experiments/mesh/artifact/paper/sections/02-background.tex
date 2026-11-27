@@ -41,11 +41,13 @@ same-node traffic is encrypted, and how much L7 telemetry they produce
 
 \paragraph{Where the cost goes}
 These designs differ in three ways that matter for performance: the number of
-user-space proxies on the request path (two for sidecars, zero to two for
-Ambient and Cilium), whether those proxies are dedicated to a pod or shared by
-a node, and how much work is moved into the kernel. Shared proxies amortize
-memory but concentrate CPU on the node that hosts them, which, as we show in
-\cref{sec:rq1}, matters for tail latency under load.
+user-space proxies on the request path (two per call for sidecars; one ztunnel
+per node the call touches for Ambient, plus the waypoint in IA7; one node Envoy
+at the destination for Cilium with L7 rules, none without), whether those
+proxies are dedicated to a pod or shared by a node, and how much work is moved
+into the kernel. Shared proxies amortize memory but concentrate work in fewer
+proxy instances; \cref{sec:rq3} examines whether node or proxy load explains
+the tail.
 
 \begin{table}[t]
   \centering
