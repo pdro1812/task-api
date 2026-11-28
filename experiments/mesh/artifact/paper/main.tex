@@ -42,8 +42,7 @@ Reservation. On Online Boutique at the middle rate, the Istio sidecar adds 52\,m
 6.7\,ms; the meshes keep 2.0 (Cilium without L7) to 9.1 (Cilium with L7) more cores busy per 1{,}000~req/s,
 and energy per request grows by 16 to 188\% at the highest rate. Among meshes that authenticate workloads,
 ambient L4 has the lowest latency, CPU, and memory and the highest or near-highest throughput; Cilium without
-L7 policy is as cheap or cheaper on the two microservice applications (consistent with a same-day control of
-three runs per cell) but authenticates only nodes and leaves same-node traffic unencrypted. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar,
+L7 policy is as cheap or cheaper on the two microservice applications (significant on HR, equivalent on OB, in a same-day control) but authenticates only nodes and leaves same-node traffic unencrypted. Profiling attributes most of the overhead to HTTP/2 processing for the Istio sidecar,
 TLS for ambient L4, and, for Cilium, the redirect to its per-node Envoy and Hubble flow logging, not its eBPF
 programs. A per-hop model fitted on two applications explains the third within 11--13\% for L4 data planes, and
 node utilization predicts maximum throughput within 20\% (median 6\%) on the microservice applications. For L7 data planes, per-hop

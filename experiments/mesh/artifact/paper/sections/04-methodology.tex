@@ -129,14 +129,17 @@ the highest level leaves every configuration some headroom.
 The main experiment crosses 6 configurations, 3 applications, and 3 load
 levels, with 10 repetitions per cell, for 540 runs. Latency and resource
 metrics come from these 10 repetitions; energy comes from 3 repetitions per
-cell of a second run (below). Four follow-up experiments ran later on the same
+cell of a second run (below). Six follow-up experiments ran later on the same
 testbed, host settings, and absolute rates: CI4 on all cells with 5
 repetitions (45 runs; no energy); a placement experiment on OB (\cref{sec:rq3},
 50 runs); and, on another day, a Hubble ablation of CI on echo with a
 same-day control of CI and a repeat of CI4 (\cref{sec:rq2}, 24 runs); and a
 same-day control of B, IA4, CI4, and IS on OB and HR plus IS in the fe-alone
-placement (54 runs). Same-day controls use 3 runs per cell, too few for a
-Mann--Whitney test to reach $p<0.05$, so we report them descriptively. Within each configuration,
+placement (54 runs); a same-day control with 5 runs per cell of CI4 against
+IA4 on OB and HR and of the Hubble ablation on echo (70 runs); and two more
+independent deployments of all seven configurations on OB at 60\% and 90\%
+load (3 runs each, 84 runs). Controls with 3 runs per cell cannot reach
+$p<0.05$ in a Mann--Whitney test and are reported descriptively. Within each configuration,
 the order of runs is randomized with a fixed seed. Each run has 60\,s of
 warm-up, which is discarded, followed by 180\,s of measurement.
 
@@ -173,14 +176,9 @@ variation of p99 across repetitions measures the predictability of each mesh.
 \subsection{Partial Reproduction of MeshInsight}
 \label{sec:validation}
 
-To check how far a single-host testbed reproduces published behavior, we repeated
-MeshInsight's comparison of the Istio sidecar against no mesh on Online
-Boutique, with five repetitions per configuration. At 275\,req/s, the sidecar
-increased cluster CPU usage by 129\%, within the published range of
-42--163\%~\cite{zhu2023meshinsight}. Latency increased by 416\% (p50) and 440\%
-(p99), above the published 27--269\%, so the reproduction is partial: CPU
-reproduces, latency does not. At 551\,req/s the latency increase grew
-further (p50 +1482\%), while CPU rose by 80\%. Possible causes are a newer
-Istio and Envoy and open-loop load; the frontend's sidecar, which carries 10
-of OB's 11 internal calls per request, is the most loaded proxy in our runs
-(\cref{sec:rq2,sec:rq3}), but we did not isolate the cause.
+Repeating MeshInsight's comparison of the Istio sidecar against no mesh on
+OB (5 runs each), the sidecar increased cluster CPU by 129\% at 275\,req/s,
+within the published 42--163\%~\cite{zhu2023meshinsight}, but p50 and p99 by
+416\% and 440\%, above the published 27--269\%: CPU reproduces, latency does
+not. A newer Istio and open-loop load are possible causes; we did not isolate
+them.

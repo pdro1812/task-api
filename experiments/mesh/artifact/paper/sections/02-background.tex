@@ -22,8 +22,8 @@ traffic and carries it between nodes over mTLS in an HTTP CONNECT-based tunnel
 (HBONE). ztunnel provides L4 functions only: identity, encryption, and L4
 authorization. When L7 features are required, traffic is additionally routed
 through a \emph{waypoint}, a shared Envoy deployment that serves a namespace or
-a service account. Ambient therefore has two operating points, L4-only (IA4)
-and L4 plus waypoint (IA7), which we measure separately.
+a service account. We measure both operating points, L4-only (IA4) and with a
+waypoint (IA7).
 
 \paragraph{Cilium service mesh}
 Cilium~\cite{cilium} implements networking, load balancing, and L3/L4 policy with eBPF

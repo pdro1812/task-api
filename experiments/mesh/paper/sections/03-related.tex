@@ -52,8 +52,5 @@ load with k6~\cite{k6} at a constant arrival rate, avoiding the
 coordinated-omission problem of closed-loop generators, which underestimates
 tail latency~\cite{tene2015latency}. Energy is measured with Intel
 RAPL~\cite{khan2018rapl}.
-Container-level energy estimators for Kubernetes such as Kepler have been
-found inaccurate~\cite{pijnacker2025kepler}, and per-task RAPL attribution on
-shared nodes must fall back to approximations from CPU
-utilization~\cite{thamm2025rapl}; we therefore report package-level energy per
-request for the whole host rather than per container.
+We report package-level energy per request for the whole host, since
+container-level estimators have been found inaccurate~\cite{pijnacker2025kepler,thamm2025rapl}.

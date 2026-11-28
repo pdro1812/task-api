@@ -78,6 +78,8 @@ SUBIR=1 SATF_BASE=<saturacao.env> ./04-saturacao.sh        # upward saturation s
 ./12-saturacao-extra.sh                                    # CI4 saturation and the remaining repeated searches
 ./13-controle-ci.sh                                        # same-day control: CI, CINH, CINHA, CI4 on echo, 60/90%, 3 reps
 ./14-controle-mesmo-dia.sh                                 # same-day control: B, IA4, CI4, IS on OB and HR, IS fe-alone on OB, 3 reps
+./15a-ops-bancos.sh                                        # database operations per request (MongoDB, memcached, redis counters)
+./15-extras.sh                                             # n=5 controls (CI4 vs IA4; Hubble) and two extra deployments of all configs on OB
 ```
 
 `./03-config.sh <B|IS|IA4|IA7|LK|CI|CI4|CINH|CINHA>` prepares a single configuration (restores the snapshot, installs the mesh,
@@ -140,6 +142,9 @@ $P analysis/60_energia.py data/main-cells-summary.csv data/energy-hp0-cells.csv 
 | `main-ci4-statistics.csv`, `main-ci4-pairwise.csv` | statistics with CI4 included; pairwise Mann–Whitney (Holm) between meshes |
 | `ci-control-cells.csv`, `ci-control-node-util.csv` | same-day control of CI with the Hubble ablation and CI4 (echo, 24 runs) |
 | `same-day-control/` | same-day control of B, IA4, CI4, IS (OB, HR) and IS fe-alone (OB), 54 runs |
+| `ops-bancos.json` | database operations per external request, per database pod and node (HR, OB) |
+| `n5/` | same-day controls with 5 runs: CI4 vs IA4 on OB and HR; CI, CINH, CINHA on echo |
+| `deploys/` | two extra independent deployments of all seven configurations on OB, 60/90% load, 3 runs each (`analysis/42_deploys.py`) |
 | `bpf-stats/` | `bpftool` dumps with `kernel.bpf_stats_enabled` for CI and CI4 (echo, OB at 60%) |
 | `installed-versions.txt`, `images.txt` | versions recorded at install time and the digests of the preloaded images |
 
