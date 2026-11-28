@@ -70,6 +70,21 @@ def px(cfg, app, pos, wp, hops):
         dp, dx = caminho(cfg, nos[e["de"]], nos[e["para"]], w)
         p += e["por_req"] * dp
         x += e["por_req"] * dx
+    # OPS_BANCOS=<ops-bancos.json> (15a-ops-bancos.sh): soma as operações de banco como chamadas, com peso
+    # PESO_BANCOS (1 = uma operação de banco custa como uma chamada gRPC). A regra L7 da CI não cobre as portas
+    # dos bancos (sem Envoy); o nó do banco vem da medição, o do cliente da posição.
+    if os.environ.get("OPS_BANCOS"):
+        peso = float(os.environ.get("PESO_BANCOS", "1"))
+        for b in json.load(open(os.environ["OPS_BANCOS"])).get(app, {}).get("bancos", []):
+            cliente = {"memcached-reserve": "reservation", "redis-cart": "cartservice"}.get(
+                "-".join(b["pod"].split("-")[:2]), b["pod"].split("-")[1])
+            if cliente not in nos:
+                continue
+            dp, dx = caminho(cfg, nos[cliente], b["no"], w)
+            if cfg in ("CI", "CI4"):
+                dp = 0
+            p += peso * b["ops_por_req"] * dp
+            x += peso * b["ops_por_req"] * dx
     return p, x
 
 

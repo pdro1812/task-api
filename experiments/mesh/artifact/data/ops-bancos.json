@@ -1,0 +1,72 @@
+{
+  "hotel": {
+    "requisicoes_k6": 31081.0,
+    "bancos": [
+      {
+        "pod": "memcached-profile-85659b7764-ccfrp",
+        "tipo": "memcached",
+        "no": "w2",
+        "ops_por_req": 5.95080595862424
+      },
+      {
+        "pod": "memcached-rate-fb8d984d5-xf8dh",
+        "tipo": "memcached",
+        "no": "w3",
+        "ops_por_req": 1.3952253788488145
+      },
+      {
+        "pod": "memcached-reserve-d887bcbc7-nclsd",
+        "tipo": "memcached",
+        "no": "w1",
+        "ops_por_req": 150.52504745664555
+      },
+      {
+        "pod": "mongodb-geo-6bcf89758f-r9xwp",
+        "tipo": "mongodb",
+        "no": "w2",
+        "ops_por_req": 0.0009330459122936842
+      },
+      {
+        "pod": "mongodb-profile-6cbfd466b4-9922t",
+        "tipo": "mongodb",
+        "no": "w3",
+        "ops_por_req": 0.0010295679032206171
+      },
+      {
+        "pod": "mongodb-rate-5b4669879c-tpshf",
+        "tipo": "mongodb",
+        "no": "w1",
+        "ops_por_req": 0.0009652199092693286
+      },
+      {
+        "pod": "mongodb-recommendation-79f9dd7855-5qdlc",
+        "tipo": "mongodb",
+        "no": "w2",
+        "ops_por_req": 0.0009973939062449728
+      },
+      {
+        "pod": "mongodb-reservation-7fcf85dfc8-9pj9d",
+        "tipo": "mongodb",
+        "no": "w3",
+        "ops_por_req": 0.02921398925388501
+      },
+      {
+        "pod": "mongodb-user-776c555556-rqtx8",
+        "tipo": "mongodb",
+        "no": "w1",
+        "ops_por_req": 0.0009973939062449728
+      }
+    ]
+  },
+  "ob": {
+    "requisicoes_k6": 23041.0,
+    "bancos": [
+      {
+        "pod": "redis-cart-856bd6c4c5-b28hs",
+        "tipo": "redis",
+        "no": "w1",
+        "ops_por_req": 0.9042576277071308
+      }
+    ]
+  }
+}
